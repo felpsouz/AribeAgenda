@@ -2,16 +2,57 @@
 import React, { useState, useEffect } from 'react';
 import { User, Calendar, Phone, Bike, Palette, Hash, Clock, Check, X, Plus, MapPin, MessageCircle, FileText } from 'lucide-react';
 
-const SistemaAribeMotos = () => {
-  const [activeTab, setActiveTab] = useState('cadastro');
-  const [agendamentos, setAgendamentos] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [mensagem, setMensagem] = useState(null);
-  const [horariosDisponiveis, setHorariosDisponiveis] = useState([]);
-  const [dataSelecionada, setDataSelecionada] = useState('');
+// Tipos e Interfaces
+interface Agendamento {
+  id: string;
+  nomeCompleto: string;
+  telefone: string;
+  modeloMoto: string;
+  cor: string;
+  chassi: string;
+  numeroPedido: string;
+  dataRetirada: string;
+  horarioRetirada: string;
+  status: 'pendente' | 'entregue';
+  dataCadastro: string;
+}
+
+interface FormCadastro {
+  nome: string;
+  sobrenome: string;
+  telefone: string;
+  modeloMoto: string;
+  cor: string;
+  chassi: string;
+  numeroPedido: string;
+  dataRetirada: string;
+  horarioRetirada: string;
+}
+
+interface Mensagem {
+  texto: string;
+  tipo: 'sucesso' | 'erro';
+}
+
+interface StatusConfig {
+  style: string;
+  label: string;
+  icon: React.ComponentType<{ size?: number }>;
+}
+
+type TabType = 'cadastro' | 'agendamentos';
+type StatusType = 'pendente' | 'entregue';
+
+const SistemaAribeMotos: React.FC = () => {
+  const [activeTab, setActiveTab] = useState<TabType>('cadastro');
+  const [agendamentos, setAgendamentos] = useState<Agendamento[]>([]);
+  const [loading, setLoading] = useState<boolean>(false);
+  const [mensagem, setMensagem] = useState<Mensagem | null>(null);
+  const [horariosDisponiveis, setHorariosDisponiveis] = useState<string[]>([]);
+  const [dataSelecionada, setDataSelecionada] = useState<string>('');
 
   // Estado do formulário de cadastro
-  const [formCadastro, setFormCadastro] = useState({
+  const [formCadastro, setFormCadastro] = useState<FormCadastro>({
     nome: '',
     sobrenome: '',
     telefone: '',
@@ -24,18 +65,18 @@ const SistemaAribeMotos = () => {
   });
 
   // Função para verificar se um horário é válido (6 horas a partir de agora)
-  const verificarHorarioValido = (data, horario) => {
+  const verificarHorarioValido = (data: string, horario: string): boolean => {
     const agora = new Date();
     const dataHorarioAgendamento = new Date(`${data}T${horario}:00`);
-    const diferencaHoras = (dataHorarioAgendamento - agora) / (1000 * 60 * 60);
+    const diferencaHoras = (dataHorarioAgendamento.getTime() - agora.getTime()) / (1000 * 60 * 60);
     return diferencaHoras >= 6;
   };
 
   // Função para gerar horários disponíveis
-  const gerarHorariosDisponiveis = (data) => {
+  const gerarHorariosDisponiveis = (data: string): string[] => {
     const dataObj = new Date(data);
     const diaSemana = dataObj.getDay(); // 0 = domingo, 1 = segunda, ..., 6 = sábado
-    const horarios = [];
+    const horarios: string[] = [];
 
     if (diaSemana >= 1 && diaSemana <= 5) { // Segunda a sexta
       // Manhã: 8:00 às 13:00
@@ -67,7 +108,7 @@ const SistemaAribeMotos = () => {
   };
 
   // Função para verificar horários ocupados
-  const obterHorariosOcupados = (data) => {
+  const obterHorariosOcupados = (data: string): string[] => {
     const dataFormatada = new Date(data).toDateString();
     return agendamentos
       .filter(agendamento => {
@@ -92,12 +133,12 @@ const SistemaAribeMotos = () => {
     } else {
       setHorariosDisponiveis([]);
     }
-  }, [dataSelecionada, agendamentos]);
+  }, [dataSelecionada, agendamentos, formCadastro.horarioRetirada]);
 
   // Carregar dados salvos na memória
   useEffect(() => {
     // Dados de exemplo para demonstração
-    const dadosExemplo = [
+    const dadosExemplo: Agendamento[] = [
       {
         id: '1',
         nomeCompleto: 'João Silva',
@@ -129,14 +170,14 @@ const SistemaAribeMotos = () => {
     if (agendamentos.length === 0) {
       setAgendamentos(dadosExemplo);
     }
-  }, []);
+  }, [agendamentos.length]);
 
-  const mostrarMensagem = (texto, tipo = 'sucesso') => {
+  const mostrarMensagem = (texto: string, tipo: 'sucesso' | 'erro' = 'sucesso'): void => {
     setMensagem({ texto, tipo });
     setTimeout(() => setMensagem(null), 4000);
   };
 
-  const validarFormulario = () => {
+  const validarFormulario = (): boolean => {
     const { nome, sobrenome, telefone, modeloMoto, cor, chassi, numeroPedido, dataRetirada, horarioRetirada } = formCadastro;
     
     if (!nome.trim()) {
@@ -203,14 +244,14 @@ const SistemaAribeMotos = () => {
     return true;
   };
 
-  const cadastrarCliente = () => {
+  const cadastrarCliente = (): void => {
     if (!validarFormulario()) return;
     
     setLoading(true);
 
     // Simular delay de API
     setTimeout(() => {
-      const novoAgendamento = {
+      const novoAgendamento: Agendamento = {
         id: Date.now().toString(),
         nomeCompleto: `${formCadastro.nome} ${formCadastro.sobrenome}`,
         telefone: formCadastro.telefone,
@@ -245,7 +286,7 @@ const SistemaAribeMotos = () => {
     }, 1000);
   };
 
-  const alterarStatus = (id, novoStatus) => {
+  const alterarStatus = (id: string, novoStatus: StatusType): void => {
     setAgendamentos(prev => 
       prev.map(agendamento => 
         agendamento.id === id 
@@ -261,7 +302,7 @@ const SistemaAribeMotos = () => {
     );
   };
 
-  const abrirWhatsApp = (telefone, nomeCompleto, modeloMoto, numeroPedido) => {
+  const abrirWhatsApp = (telefone: string, nomeCompleto: string, modeloMoto: string, numeroPedido: string): void => {
     // Limpar o telefone e garantir formato correto
     const telefoneLimpo = telefone.replace(/\D/g, '');
     let numeroFormatado = telefoneLimpo;
@@ -278,14 +319,14 @@ const SistemaAribeMotos = () => {
     window.open(linkWhatsApp, '_blank');
   };
 
-  const excluirAgendamento = (id) => {
+  const excluirAgendamento = (id: string): void => {
     if (window.confirm('Tem certeza que deseja excluir este agendamento?')) {
       setAgendamentos(prev => prev.filter(agendamento => agendamento.id !== id));
       mostrarMensagem('Agendamento excluído com sucesso!');
     }
   };
 
-  const formatarTelefone = (telefone) => {
+  const formatarTelefone = (telefone: string): string => {
     const cleaned = telefone.replace(/\D/g, '');
     if (cleaned.length === 11) {
       return `(${cleaned.slice(0, 2)}) ${cleaned.slice(2, 7)}-${cleaned.slice(7)}`;
@@ -296,17 +337,17 @@ const SistemaAribeMotos = () => {
     return telefone;
   };
 
-  const formatarData = (data) => {
+  const formatarData = (data: string): string => {
     return new Date(data).toLocaleDateString('pt-BR');
   };
 
-  const obterNomeDiaSemana = (data) => {
+  const obterNomeDiaSemana = (data: string): string => {
     const dias = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
     return dias[new Date(data).getDay()];
   };
 
-  const getStatusBadge = (status) => {
-    const config = {
+  const getStatusBadge = (status: StatusType): React.ReactElement => {
+    const config: Record<StatusType, StatusConfig> = {
       pendente: {
         style: 'bg-yellow-100 text-yellow-800 border border-yellow-200',
         label: 'Pendente',
@@ -336,7 +377,7 @@ const SistemaAribeMotos = () => {
     }
     const dataA = new Date(`${a.dataRetirada}T${a.horarioRetirada}`);
     const dataB = new Date(`${b.dataRetirada}T${b.horarioRetirada}`);
-    return dataA - dataB;
+    return dataA.getTime() - dataB.getTime();
   });
 
   const agendamentosPendentes = agendamentos.filter(a => a.status === 'pendente').length;
@@ -346,7 +387,7 @@ const SistemaAribeMotos = () => {
   const dataMinima = new Date().toISOString().split('T')[0];
 
   // Função para obter horário de corte (6 horas a partir de agora)
-  const obterHorarioCorte = () => {
+  const obterHorarioCorte = (): string => {
     const agora = new Date();
     const corte = new Date(agora.getTime() + 6 * 60 * 60 * 1000);
     return corte.toLocaleString('pt-BR', {
@@ -356,6 +397,18 @@ const SistemaAribeMotos = () => {
       hour: '2-digit',
       minute: '2-digit'
     });
+  };
+
+  // Handlers para input changes
+  const handleInputChange = (field: keyof FormCadastro) => (
+    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
+  ): void => {
+    setFormCadastro(prev => ({ ...prev, [field]: e.target.value }));
+  };
+
+  const handleDataChange = (e: React.ChangeEvent<HTMLInputElement>): void => {
+    setDataSelecionada(e.target.value);
+    setFormCadastro(prev => ({ ...prev, dataRetirada: e.target.value, horarioRetirada: '' }));
   };
 
   return (
@@ -467,7 +520,7 @@ const SistemaAribeMotos = () => {
                   <input
                     type="text"
                     value={formCadastro.nome}
-                    onChange={(e) => setFormCadastro({...formCadastro, nome: e.target.value})}
+                    onChange={handleInputChange('nome')}
                     className="w-full p-4 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500 transition-colors"
                     placeholder="Digite o nome"
                     required
@@ -481,7 +534,7 @@ const SistemaAribeMotos = () => {
                   <input
                     type="text"
                     value={formCadastro.sobrenome}
-                    onChange={(e) => setFormCadastro({...formCadastro, sobrenome: e.target.value})}
+                    onChange={handleInputChange('sobrenome')}
                     className="w-full p-4 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500 transition-colors"
                     placeholder="Digite o sobrenome"
                     required
@@ -496,7 +549,7 @@ const SistemaAribeMotos = () => {
                   <input
                     type="tel"
                     value={formCadastro.telefone}
-                    onChange={(e) => setFormCadastro({...formCadastro, telefone: e.target.value})}
+                    onChange={handleInputChange('telefone')}
                     className="w-full p-4 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500 transition-colors"
                     placeholder="(00) 00000-0000"
                     required
@@ -511,7 +564,7 @@ const SistemaAribeMotos = () => {
                   <input
                     type="text"
                     value={formCadastro.modeloMoto}
-                    onChange={(e) => setFormCadastro({...formCadastro, modeloMoto: e.target.value})}
+                    onChange={handleInputChange('modeloMoto')}
                     className="w-full p-4 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500 transition-colors"
                     placeholder="Ex: Honda CB 600F"
                     required
@@ -526,7 +579,7 @@ const SistemaAribeMotos = () => {
                   <input
                     type="text"
                     value={formCadastro.cor}
-                    onChange={(e) => setFormCadastro({...formCadastro, cor: e.target.value})}
+                    onChange={handleInputChange('cor')}
                     className="w-full p-4 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500 transition-colors"
                     placeholder="Ex: Azul"
                     required
@@ -541,7 +594,7 @@ const SistemaAribeMotos = () => {
                   <input
                     type="text"
                     value={formCadastro.chassi}
-                    onChange={(e) => setFormCadastro({...formCadastro, chassi: e.target.value})}
+                    onChange={handleInputChange('chassi')}
                     className="w-full p-4 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500 transition-colors"
                     placeholder="Número do chassi"
                     required
@@ -556,7 +609,7 @@ const SistemaAribeMotos = () => {
                   <input
                     type="text"
                     value={formCadastro.numeroPedido}
-                    onChange={(e) => setFormCadastro({...formCadastro, numeroPedido: e.target.value})}
+                    onChange={handleInputChange('numeroPedido')}
                     className="w-full p-4 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500 transition-colors"
                     placeholder="Ex: 12345"
                     required
@@ -571,10 +624,7 @@ const SistemaAribeMotos = () => {
                   <input
                     type="date"
                     value={dataSelecionada}
-                    onChange={(e) => {
-                      setDataSelecionada(e.target.value);
-                      setFormCadastro({...formCadastro, dataRetirada: e.target.value, horarioRetirada: ''});
-                    }}
+                    onChange={handleDataChange}
                     className="w-full p-4 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500 transition-colors"
                     min={dataMinima}
                     required
@@ -593,7 +643,7 @@ const SistemaAribeMotos = () => {
                   </label>
                   <select
                     value={formCadastro.horarioRetirada}
-                    onChange={(e) => setFormCadastro({...formCadastro, horarioRetirada: e.target.value})}
+                    onChange={handleInputChange('horarioRetirada')}
                     className="w-full p-4 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500 transition-colors"
                     required
                     disabled={!dataSelecionada}
@@ -616,16 +666,26 @@ const SistemaAribeMotos = () => {
                     </p>
                   )}
                 </div>
+              </div>
 
-                <div className="md:col-span-2 lg:col-span-3">
-                  <button
-                    onClick={cadastrarCliente}
-                    disabled={loading}
-                    className="w-full bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white font-semibold py-4 px-6 rounded-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed transform hover:scale-105 shadow-lg"
-                  >
-                    {loading ? 'Cadastrando...' : 'Cadastrar Cliente'}
-                  </button>
-                </div>
+              <div className="flex justify-end mt-8">
+                <button
+                  onClick={cadastrarCliente}
+                  disabled={loading}
+                  className="flex items-center gap-2 px-8 py-4 bg-red-600 text-white rounded-lg font-semibold hover:bg-red-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors shadow-lg"
+                >
+                  {loading ? (
+                    <>
+                      <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                      Cadastrando...
+                    </>
+                  ) : (
+                    <>
+                      <Plus size={18} />
+                      Cadastrar Cliente
+                    </>
+                  )}
+                </button>
               </div>
             </div>
           </div>
@@ -634,36 +694,36 @@ const SistemaAribeMotos = () => {
         {activeTab === 'agendamentos' && (
           <div className="space-y-6">
             {/* Estatísticas */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="bg-white p-6 rounded-xl shadow-lg">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div className="bg-white rounded-xl shadow-lg p-6">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-gray-600 text-sm font-medium">Total</p>
+                    <p className="text-sm font-medium text-gray-600">Total de Agendamentos</p>
                     <p className="text-3xl font-bold text-gray-800">{agendamentos.length}</p>
-                    </div>
-                  <div className="w-12 h-12 bg-gray-100 rounded-lg flex items-center justify-center">
-                    <Calendar className="text-gray-600" size={24} />
+                  </div>
+                  <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
+                    <Calendar className="text-blue-600" size={24} />
                   </div>
                 </div>
               </div>
-              
-              <div className="bg-white p-6 rounded-xl shadow-lg">
+
+              <div className="bg-white rounded-xl shadow-lg p-6">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-yellow-600 text-sm font-medium">Pendentes</p>
-                    <p className="text-3xl font-bold text-yellow-700">{agendamentosPendentes}</p>
+                    <p className="text-sm font-medium text-gray-600">Pendentes</p>
+                    <p className="text-3xl font-bold text-yellow-600">{agendamentosPendentes}</p>
                   </div>
                   <div className="w-12 h-12 bg-yellow-100 rounded-lg flex items-center justify-center">
                     <Clock className="text-yellow-600" size={24} />
                   </div>
                 </div>
               </div>
-              
-              <div className="bg-white p-6 rounded-xl shadow-lg">
+
+              <div className="bg-white rounded-xl shadow-lg p-6">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-green-600 text-sm font-medium">Entregues</p>
-                    <p className="text-3xl font-bold text-green-700">{agendamentosEntregues}</p>
+                    <p className="text-sm font-medium text-gray-600">Entregues</p>
+                    <p className="text-3xl font-bold text-green-600">{agendamentosEntregues}</p>
                   </div>
                   <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
                     <Check className="text-green-600" size={24} />
@@ -672,161 +732,163 @@ const SistemaAribeMotos = () => {
               </div>
             </div>
 
-            {/* Lista de agendamentos */}
-            <div className="bg-white rounded-xl shadow-lg">
+            {/* Lista de Agendamentos */}
+            <div className="bg-white rounded-xl shadow-lg overflow-hidden">
               <div className="p-6 border-b border-gray-200">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-red-100 rounded-lg flex items-center justify-center">
-                    <Calendar className="text-red-600" size={20} />
-                  </div>
-                  <h2 className="text-2xl font-bold text-gray-800">Lista de Agendamentos</h2>
-                </div>
+                <h2 className="text-2xl font-bold text-gray-800">Lista de Agendamentos</h2>
+                <p className="text-gray-600 mt-1">Gerencie os agendamentos de entrega de motos</p>
               </div>
 
               {agendamentosOrdenados.length === 0 ? (
                 <div className="p-12 text-center">
-                  <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                    <Calendar className="text-gray-400" size={32} />
-                  </div>
-                  <h3 className="text-lg font-medium text-gray-600 mb-2">Nenhum agendamento encontrado</h3>
-                  <p className="text-gray-500">Os agendamentos aparecerão aqui após o cadastro dos clientes.</p>
+                  <Calendar className="mx-auto text-gray-400" size={48} />
+                  <h3 className="text-lg font-medium text-gray-900 mt-4">Nenhum agendamento encontrado</h3>
+                  <p className="text-gray-500 mt-2">Cadastre o primeiro cliente para começar</p>
                 </div>
               ) : (
-                <div className="divide-y divide-gray-200">
-                  {agendamentosOrdenados.map((agendamento) => (
-                    <div key={agendamento.id} className="p-6 hover:bg-gray-50 transition-colors">
-                      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-                        <div className="flex-1">
-                          <div className="flex items-center gap-3 mb-3">
-                            <div className="w-12 h-12 bg-gradient-to-br from-red-100 to-red-200 rounded-xl flex items-center justify-center">
-                              <User className="text-red-600" size={20} />
-                            </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Cliente
+                        </th>
+                        <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Contato
+                        </th>
+                        <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Moto
+                        </th>
+                        <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Data/Horário
+                        </th>
+                        <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Status
+                        </th>
+                        <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Ações
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-gray-200">
+                      {agendamentosOrdenados.map((agendamento) => (
+                        <tr key={agendamento.id} className="hover:bg-gray-50 transition-colors">
+                          <td className="px-6 py-4">
                             <div>
-                              <h3 className="font-bold text-lg text-gray-800">
+                              <div className="text-sm font-semibold text-gray-900">
                                 {agendamento.nomeCompleto}
-                              </h3>
-                              <div className="flex items-center gap-4 text-sm text-gray-600">
-                                <span className="flex items-center gap-1">
-                                  <Phone size={14} />
-                                  {formatarTelefone(agendamento.telefone)}
-                                </span>
-                                <span className="flex items-center gap-1">
-                                  <FileText size={14} />
-                                  Pedido: {agendamento.numeroPedido}
-                                </span>
+                              </div>
+                              <div className="text-sm text-gray-500">
+                                Pedido: {agendamento.numeroPedido}
                               </div>
                             </div>
-                          </div>
-
-                          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                            <div className="bg-gray-50 p-3 rounded-lg">
-                              <p className="text-xs text-gray-500 uppercase tracking-wide font-medium mb-1">
-                                Moto
-                              </p>
-                              <p className="font-semibold text-gray-800 flex items-center gap-1">
-                                <Bike size={14} />
+                          </td>
+                          <td className="px-6 py-4 text-sm text-gray-900">
+                            {formatarTelefone(agendamento.telefone)}
+                          </td>
+                          <td className="px-6 py-4">
+                            <div>
+                              <div className="text-sm font-medium text-gray-900">
                                 {agendamento.modeloMoto}
-                              </p>
-                              <p className="text-sm text-gray-600 flex items-center gap-1">
-                                <Palette size={12} />
-                                {agendamento.cor}
-                              </p>
+                              </div>
+                              <div className="text-sm text-gray-500">
+                                {agendamento.cor} • {agendamento.chassi}
+                              </div>
                             </div>
-
-                            <div className="bg-gray-50 p-3 rounded-lg">
-                              <p className="text-xs text-gray-500 uppercase tracking-wide font-medium mb-1">
-                                Chassi
-                              </p>
-                              <p className="font-semibold text-gray-800 flex items-center gap-1 text-sm">
-                                <Hash size={14} />
-                                {agendamento.chassi}
-                              </p>
-                            </div>
-
-                            <div className="bg-gray-50 p-3 rounded-lg">
-                              <p className="text-xs text-gray-500 uppercase tracking-wide font-medium mb-1">
-                                Data de Retirada
-                              </p>
-                              <p className="font-semibold text-gray-800 flex items-center gap-1">
-                                <Calendar size={14} />
+                          </td>
+                          <td className="px-6 py-4">
+                            <div>
+                              <div className="text-sm font-medium text-gray-900">
                                 {formatarData(agendamento.dataRetirada)}
-                              </p>
-                              <p className="text-sm text-gray-600">
-                                {obterNomeDiaSemana(agendamento.dataRetirada)}
-                              </p>
+                              </div>
+                              <div className="text-sm text-gray-500">
+                                {agendamento.horarioRetirada} • {obterNomeDiaSemana(agendamento.dataRetirada)}
+                              </div>
                             </div>
-
-                            <div className="bg-gray-50 p-3 rounded-lg">
-                              <p className="text-xs text-gray-500 uppercase tracking-wide font-medium mb-1">
-                                Horário
-                              </p>
-                              <p className="font-semibold text-gray-800 flex items-center gap-1">
-                                <Clock size={14} />
-                                {agendamento.horarioRetirada}
-                              </p>
-                            </div>
-                          </div>
-                        </div>
-
-                        <div className="flex flex-col items-start lg:items-end gap-3">
-                          <div className="flex items-center gap-2">
+                          </td>
+                          <td className="px-6 py-4">
                             {getStatusBadge(agendamento.status)}
-                          </div>
-
-                          <div className="flex flex-wrap gap-2">
-                            <button
-                              onClick={() => abrirWhatsApp(
-                                agendamento.telefone, 
-                                agendamento.nomeCompleto, 
-                                agendamento.modeloMoto,
-                                agendamento.numeroPedido
+                          </td>
+                          <td className="px-6 py-4">
+                            <div className="flex items-center gap-2">
+                              {agendamento.status === 'pendente' && (
+                                <button
+                                  onClick={() => alterarStatus(agendamento.id, 'entregue')}
+                                  className="flex items-center gap-1 px-3 py-2 bg-green-100 text-green-700 rounded-lg hover:bg-green-200 transition-colors text-xs font-medium"
+                                  title="Marcar como entregue"
+                                >
+                                  <Check size={14} />
+                                  Entregar
+                                </button>
                               )}
-                              className="flex items-center gap-2 px-3 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded-lg transition-colors"
-                            >
-                              <MessageCircle size={14} />
-                              WhatsApp
-                            </button>
+                              
+                              {agendamento.status === 'entregue' && (
+                                <button
+                                  onClick={() => alterarStatus(agendamento.id, 'pendente')}
+                                  className="flex items-center gap-1 px-3 py-2 bg-yellow-100 text-yellow-700 rounded-lg hover:bg-yellow-200 transition-colors text-xs font-medium"
+                                  title="Marcar como pendente"
+                                >
+                                  <Clock size={14} />
+                                  Pendente
+                                </button>
+                              )}
 
-                            {agendamento.status === 'pendente' ? (
                               <button
-                                onClick={() => alterarStatus(agendamento.id, 'entregue')}
-                                className="flex items-center gap-2 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors"
+                                onClick={() => abrirWhatsApp(
+                                  agendamento.telefone,
+                                  agendamento.nomeCompleto,
+                                  agendamento.modeloMoto,
+                                  agendamento.numeroPedido
+                                )}
+                                className="flex items-center gap-1 px-3 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors text-xs font-medium"
+                                title="Enviar mensagem WhatsApp"
                               >
-                                <Check size={14} />
-                                Marcar como Entregue
+                                <MessageCircle size={14} />
+                                WhatsApp
                               </button>
-                            ) : (
+
                               <button
-                                onClick={() => alterarStatus(agendamento.id, 'pendente')}
-                                className="flex items-center gap-2 px-3 py-2 bg-yellow-600 hover:bg-yellow-700 text-white text-sm font-medium rounded-lg transition-colors"
+                                onClick={() => excluirAgendamento(agendamento.id)}
+                                className="flex items-center gap-1 px-3 py-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition-colors text-xs font-medium"
+                                title="Excluir agendamento"
                               >
-                                <Clock size={14} />
-                                Marcar como Pendente
+                                <X size={14} />
+                                Excluir
                               </button>
-                            )}
-
-                            <button
-                              onClick={() => excluirAgendamento(agendamento.id)}
-                              className="flex items-center gap-2 px-3 py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-medium rounded-lg transition-colors"
-                            >
-                              <X size={14} />
-                              Excluir
-                            </button>
-                          </div>
-
-                          <div className="text-xs text-gray-500">
-                            Cadastrado em: {new Date(agendamento.dataCadastro).toLocaleDateString('pt-BR')}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
               )}
             </div>
           </div>
         )}
       </div>
+
+      {/* Footer */}
+      <footer className="bg-gray-800 text-white mt-12">
+        <div className="max-w-6xl mx-auto px-4 py-8">
+          <div className="text-center">
+            <div className="flex items-center justify-center gap-2 mb-4">
+              <Bike size={24} />
+              <span className="text-xl font-bold">Aribé Motos</span>
+            </div>
+            <p className="text-gray-400 text-sm">
+              Sistema de Agendamento para Entrega de Motos
+            </p>
+            <p className="text-gray-500 text-xs mt-2">
+              © 2024 Aribé Motos. Desenvolvido para otimizar o processo de entrega.
+            </p>
+            <div className="mt-4 text-xs text-gray-500">
+              <p>Horário de Funcionamento:</p>
+              <p>Segunda a Sexta: 8h às 17h | Sábado: 8h às 11h | Domingo: Fechado</p>
+            </div>
+          </div>
+        </div>
+      </footer>
     </div>
   );
 };
