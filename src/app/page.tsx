@@ -138,7 +138,9 @@ const SistemaAribeMotos: React.FC = () => {
   // Carregar dados salvos na memória
   useEffect(() => {
     // Dados de exemplo para demonstração
+    
     const dadosExemplo: Agendamento[] = [
+      /*
       {
         id: '1',
         nomeCompleto: 'João Silva',
@@ -165,7 +167,8 @@ const SistemaAribeMotos: React.FC = () => {
         status: 'entregue',
         dataCadastro: new Date().toISOString()
       }
-    ];
+        */
+    ]; 
     
     if (agendamentos.length === 0) {
       setAgendamentos(dadosExemplo);
