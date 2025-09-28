@@ -67,14 +67,23 @@ const SistemaAribeMotos: React.FC = () => {
   // Função para verificar se um horário é válido (6 horas a partir de agora)
   const verificarHorarioValido = (data: string, horario: string): boolean => {
     const agora = new Date();
-    const dataHorarioAgendamento = new Date(`${data}T${horario}:00`);
+    
+    // Separar os componentes da data para evitar problemas de fuso horário
+    const [ano, mes, dia] = data.split('-').map(Number);
+    const [hora, minuto] = horario.split(':').map(Number);
+    
+    // Criar data explicitamente no horário local
+    const dataHorarioAgendamento = new Date(ano, mes - 1, dia, hora, minuto, 0);
+    
     const diferencaHoras = (dataHorarioAgendamento.getTime() - agora.getTime()) / (1000 * 60 * 60);
     return diferencaHoras >= 6;
   };
 
   // Função para gerar horários disponíveis
   const gerarHorariosDisponiveis = (data: string): string[] => {
-    const dataObj = new Date(data);
+    // Criar data usando componentes separados
+    const [ano, mes, dia] = data.split('-').map(Number);
+    const dataObj = new Date(ano, mes - 1, dia);
     const diaSemana = dataObj.getDay(); // 0 = domingo, 1 = segunda, ..., 6 = sábado
     const horarios: string[] = [];
 
@@ -109,11 +118,10 @@ const SistemaAribeMotos: React.FC = () => {
 
   // Função para verificar horários ocupados
   const obterHorariosOcupados = (data: string): string[] => {
-    const dataFormatada = new Date(data).toDateString();
     return agendamentos
       .filter(agendamento => {
-        const dataAgendamento = new Date(agendamento.dataRetirada).toDateString();
-        return dataAgendamento === dataFormatada;
+        // Comparar as datas diretamente como strings (formato YYYY-MM-DD)
+        return agendamento.dataRetirada === data;
       })
       .map(agendamento => agendamento.horarioRetirada);
   };
@@ -221,7 +229,8 @@ const SistemaAribeMotos: React.FC = () => {
     }
 
     // Validar se a data não é no passado
-    const dataAgendamento = new Date(dataRetirada);
+    const [ano, mes, dia] = dataRetirada.split('-').map(Number);
+    const dataAgendamento = new Date(ano, mes - 1, dia);
     const hoje = new Date();
     hoje.setHours(0, 0, 0, 0);
     dataAgendamento.setHours(0, 0, 0, 0);
@@ -341,12 +350,16 @@ const SistemaAribeMotos: React.FC = () => {
   };
 
   const formatarData = (data: string): string => {
-    return new Date(data).toLocaleDateString('pt-BR');
+    const [ano, mes, dia] = data.split('-').map(Number);
+    const dataObj = new Date(ano, mes - 1, dia);
+    return dataObj.toLocaleDateString('pt-BR');
   };
 
   const obterNomeDiaSemana = (data: string): string => {
     const dias = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
-    return dias[new Date(data).getDay()];
+    const [ano, mes, dia] = data.split('-').map(Number);
+    const dataObj = new Date(ano, mes - 1, dia);
+    return dias[dataObj.getDay()];
   };
 
   const getStatusBadge = (status: StatusType): React.ReactElement => {
@@ -378,8 +391,16 @@ const SistemaAribeMotos: React.FC = () => {
     if (a.status !== b.status) {
       return a.status === 'pendente' ? -1 : 1;
     }
-    const dataA = new Date(`${a.dataRetirada}T${a.horarioRetirada}`);
-    const dataB = new Date(`${b.dataRetirada}T${b.horarioRetirada}`);
+    
+    // Criar datas corretamente para comparação
+    const [anoA, mesA, diaA] = a.dataRetirada.split('-').map(Number);
+    const [horaA, minutoA] = a.horarioRetirada.split(':').map(Number);
+    const dataA = new Date(anoA, mesA - 1, diaA, horaA, minutoA);
+    
+    const [anoB, mesB, diaB] = b.dataRetirada.split('-').map(Number);
+    const [horaB, minutoB] = b.horarioRetirada.split(':').map(Number);
+    const dataB = new Date(anoB, mesB - 1, diaB, horaB, minutoB);
+    
     return dataA.getTime() - dataB.getTime();
   });
 
