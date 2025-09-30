@@ -1,15 +1,8 @@
 'use client'
 import React, { useState, useEffect } from 'react';
 import { User, Calendar, Phone, Bike, Palette, Hash, Clock, Check, X, Plus, MapPin, MessageCircle, FileText } from 'lucide-react';
+import { criarAgendamento, listarAgendamentos, atualizarStatus, excluirAgendamento } from '@/firebase/agendamentos';
 
-// IMPORTANTE: Você precisa criar estes arquivos separadamente:
-// 1. src/firebase/config.ts (com suas credenciais)
-// 2. src/firebase/agendamentos.ts (com as funções CRUD)
-
-// Importe as funções do Firebase (descomente quando criar os arquivos)
-// import { criarAgendamento, listarAgendamentos, atualizarStatus, excluirAgendamento } from '@/firebase/agendamentos';
-
-// Tipos e Interfaces
 interface Agendamento {
   id: string;
   nomeCompleto: string;
@@ -71,49 +64,31 @@ const SistemaAribeMotos: React.FC = () => {
     horarioRetirada: ''
   });
 
-  // ============= FUNÇÕES FIREBASE (SIMULADAS) =============
-  // SUBSTITUA ESTAS FUNÇÕES pelas importadas do arquivo agendamentos.ts
-  
   const carregarAgendamentos = async () => {
     setLoadingData(true);
     try {
-      // const resultado = await listarAgendamentos();
-      // if (resultado.success) {
-      //   setAgendamentos(resultado.data);
-      // }
-      
-      // Simulação (remova quando integrar com Firebase)
-      setTimeout(() => {
-        setAgendamentos([]);
-        setLoadingData(false);
-      }, 1000);
+      const resultado = await listarAgendamentos();
+      if (resultado.success) {
+        setAgendamentos(resultado.data);
+      } else {
+        mostrarMensagem('Erro ao carregar agendamentos', 'erro');
+      }
     } catch (error) {
       console.error('Erro ao carregar agendamentos:', error);
       mostrarMensagem('Erro ao carregar agendamentos', 'erro');
+    } finally {
       setLoadingData(false);
     }
   };
 
   const salvarAgendamento = async (novoAgendamento: Omit<Agendamento, 'dataCadastro'>) => {
     try {
-      // const resultado = await criarAgendamento(novoAgendamento);
-      // if (resultado.success) {
-      //   await carregarAgendamentos();
-      //   return true;
-      // }
-      // return false;
-      
-      // Simulação (remova quando integrar com Firebase)
-      return new Promise<boolean>((resolve) => {
-        setTimeout(() => {
-          const agendamentoComData = {
-            ...novoAgendamento,
-            dataCadastro: new Date().toISOString()
-          };
-          setAgendamentos(prev => [...prev, agendamentoComData]);
-          resolve(true);
-        }, 1000);
-      });
+      const resultado = await criarAgendamento(novoAgendamento);
+      if (resultado.success) {
+        await carregarAgendamentos();
+        return true;
+      }
+      return false;
     } catch (error) {
       console.error('Erro ao salvar agendamento:', error);
       return false;
@@ -122,22 +97,12 @@ const SistemaAribeMotos: React.FC = () => {
 
   const atualizarStatusAgendamento = async (id: string, novoStatus: StatusType) => {
     try {
-      // const resultado = await atualizarStatus(id, novoStatus);
-      // if (resultado.success) {
-      //   await carregarAgendamentos();
-      //   return true;
-      // }
-      // return false;
-      
-      // Simulação (remova quando integrar com Firebase)
-      setAgendamentos(prev => 
-        prev.map(agendamento => 
-          agendamento.id === id 
-            ? { ...agendamento, status: novoStatus }
-            : agendamento
-        )
-      );
-      return true;
+      const resultado = await atualizarStatus(id, novoStatus);
+      if (resultado.success) {
+        await carregarAgendamentos();
+        return true;
+      }
+      return false;
     } catch (error) {
       console.error('Erro ao atualizar status:', error);
       return false;
@@ -146,23 +111,17 @@ const SistemaAribeMotos: React.FC = () => {
 
   const deletarAgendamento = async (id: string) => {
     try {
-      // const resultado = await excluirAgendamento(id);
-      // if (resultado.success) {
-      //   await carregarAgendamentos();
-      //   return true;
-      // }
-      // return false;
-      
-      // Simulação (remova quando integrar com Firebase)
-      setAgendamentos(prev => prev.filter(agendamento => agendamento.id !== id));
-      return true;
+      const resultado = await excluirAgendamento(id);
+      if (resultado.success) {
+        await carregarAgendamentos();
+        return true;
+      }
+      return false;
     } catch (error) {
       console.error('Erro ao excluir agendamento:', error);
       return false;
     }
   };
-
-  // ============= FIM FUNÇÕES FIREBASE =============
 
   useEffect(() => {
     carregarAgendamentos();
@@ -369,7 +328,7 @@ const SistemaAribeMotos: React.FC = () => {
     window.open(linkWhatsApp, '_blank');
   };
 
-  const excluirAgendamento = async (id: string): Promise<void> => {
+  const excluirAgendamentoHandler = async (id: string): Promise<void> => {
     if (window.confirm('Tem certeza que deseja excluir este agendamento?')) {
       const sucesso = await deletarAgendamento(id);
       
@@ -419,7 +378,9 @@ const SistemaAribeMotos: React.FC = () => {
       }
     };
 
-    const { style, label, icon: Icon } = config[status];
+    // Garantir que o status é válido, usar 'pendente' como padrão
+    const statusValido = (status === 'pendente' || status === 'entregue') ? status : 'pendente';
+    const { style, label, icon: Icon } = config[statusValido];
 
     return (
       <span className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium ${style}`}>
@@ -714,26 +675,25 @@ const SistemaAribeMotos: React.FC = () => {
                     <p className="text-sm text-red-600 mt-1">
                       Nenhum horário disponível para esta data
                     </p>
-                  )}
-                </div>
+                  )}</div>
               </div>
-              
-              <div className="mt-8 flex justify-end">
+
+              <div className="mt-8 flex gap-4">
                 <button
                   onClick={cadastrarCliente}
-                  disabled={loading}
-                  className="bg-red-600 hover:bg-red-700 text-white font-bold py-4 px-8 rounded-lg transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center gap-2 shadow-lg"
+                  disabled={loading || !dataSelecionada || horariosDisponiveis.length === 0}
+                  className="flex-1 bg-red-600 text-white py-4 px-6 rounded-lg font-semibold hover:bg-red-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-all duration-200 transform hover:scale-105 active:scale-95 shadow-lg"
                 >
                   {loading ? (
-                    <>
+                    <span className="flex items-center justify-center gap-2">
                       <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
                       Cadastrando...
-                    </>
+                    </span>
                   ) : (
-                    <>
-                      <Check size={20} />
+                    <span className="flex items-center justify-center gap-2">
+                      <Plus size={20} />
                       Cadastrar Cliente
-                    </>
+                    </span>
                   )}
                 </button>
               </div>
@@ -743,101 +703,105 @@ const SistemaAribeMotos: React.FC = () => {
 
         {activeTab === 'agendamentos' && (
           <div className="bg-white rounded-xl shadow-lg p-8">
-            <div className="flex items-center gap-3 mb-6">
-              <div className="w-10 h-10 bg-red-100 rounded-lg flex items-center justify-center">
-                <Calendar className="text-red-600" size={20} />
+            <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-red-100 rounded-lg flex items-center justify-center">
+                  <Calendar className="text-red-600" size={20} />
+                </div>
+                <h2 className="text-2xl font-bold text-gray-800">Agendamentos</h2>
               </div>
-              <h2 className="text-2xl font-bold text-gray-800">Lista de Agendamentos</h2>
+              <div className="text-sm text-gray-600">
+                Total: {agendamentos.length} agendamento(s)
+              </div>
             </div>
 
             {loadingData ? (
-              <div className="text-center py-12">
-                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-red-600 mx-auto"></div>
-                <p className="text-gray-600 mt-4">Carregando agendamentos...</p>
+              <div className="flex items-center justify-center py-12">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-red-600"></div>
               </div>
-            ) : agendamentosOrdenados.length === 0 ? (
+            ) : agendamentos.length === 0 ? (
               <div className="text-center py-12">
-                <Calendar size={48} className="mx-auto text-gray-400 mb-4" />
-                <p className="text-gray-600 text-lg">Nenhum agendamento encontrado</p>
+                <Calendar className="mx-auto text-gray-400 mb-4" size={48} />
+                <p className="text-gray-600 text-lg">Nenhum agendamento cadastrado</p>
                 <p className="text-gray-500 text-sm mt-2">Cadastre o primeiro cliente para começar</p>
               </div>
             ) : (
               <div className="space-y-4">
                 {agendamentosOrdenados.map((agendamento: Agendamento) => (
-                  <div 
-                    key={agendamento.id} 
-                    className="border border-gray-200 rounded-lg p-6 hover:shadow-md transition-shadow bg-gray-50"
+                  <div
+                    key={agendamento.id}
+                    className="border border-gray-200 rounded-lg p-6 hover:shadow-md transition-shadow duration-200"
                   >
-                    <div className="flex justify-between items-start mb-4">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-3 mb-2">
-                          <h3 className="text-xl font-bold text-gray-800">{agendamento.nomeCompleto}</h3>
-                          {getStatusBadge(agendamento.status)}
+                    <div className="flex items-start justify-between mb-4">
+                      <div className="flex items-center gap-3">
+                        <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center">
+                          <User className="text-red-600" size={20} />
                         </div>
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 text-sm text-gray-600">
-                          <div className="flex items-center gap-2">
-                            <Phone size={16} className="text-red-600" />
-                            <span>{formatarTelefone(agendamento.telefone)}</span>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <Bike size={16} className="text-red-600" />
-                            <span>{agendamento.modeloMoto}</span>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <Palette size={16} className="text-red-600" />
-                            <span>{agendamento.cor}</span>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <Hash size={16} className="text-red-600" />
-                            <span className="text-xs">{agendamento.chassi}</span>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <FileText size={16} className="text-red-600" />
-                            <span>Pedido: {agendamento.numeroPedido}</span>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <Calendar size={16} className="text-red-600" />
-                            <span>{formatarData(agendamento.dataRetirada)} às {agendamento.horarioRetirada}</span>
-                          </div>
+                        <div>
+                          <h3 className="font-bold text-lg text-gray-800">{agendamento.nomeCompleto}</h3>
+                          <p className="text-sm text-gray-600">{formatarTelefone(agendamento.telefone)}</p>
                         </div>
                       </div>
+                      {getStatusBadge(agendamento.status)}
                     </div>
-                    
-                    <div className="flex gap-2 pt-4 border-t border-gray-200">
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                      <div className="flex items-center gap-2 text-gray-700">
+                        <Bike size={16} className="text-red-600" />
+                        <span className="text-sm"><strong>Modelo:</strong> {agendamento.modeloMoto}</span>
+                      </div>
+                      <div className="flex items-center gap-2 text-gray-700">
+                        <Palette size={16} className="text-red-600" />
+                        <span className="text-sm"><strong>Cor:</strong> {agendamento.cor}</span>
+                      </div>
+                      <div className="flex items-center gap-2 text-gray-700">
+                        <Hash size={16} className="text-red-600" />
+                        <span className="text-sm"><strong>Chassi:</strong> {agendamento.chassi}</span>
+                      </div>
+                      <div className="flex items-center gap-2 text-gray-700">
+                        <FileText size={16} className="text-red-600" />
+                        <span className="text-sm"><strong>Pedido:</strong> {agendamento.numeroPedido}</span>
+                      </div>
+                      <div className="flex items-center gap-2 text-gray-700">
+                        <Calendar size={16} className="text-red-600" />
+                        <span className="text-sm"><strong>Data:</strong> {formatarData(agendamento.dataRetirada)}</span>
+                      </div>
+                      <div className="flex items-center gap-2 text-gray-700">
+                        <Clock size={16} className="text-red-600" />
+                        <span className="text-sm"><strong>Horário:</strong> {agendamento.horarioRetirada}</span>
+                      </div>
+                    </div>
+
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        onClick={() => abrirWhatsApp(agendamento.telefone, agendamento.nomeCompleto, agendamento.modeloMoto, agendamento.numeroPedido)}
+                        className="flex items-center gap-2 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors text-sm font-medium"
+                      >
+                        <MessageCircle size={16} />
+                        WhatsApp
+                      </button>
+                      
                       {agendamento.status === 'pendente' ? (
-                        <>
-                          <button
-                            onClick={() => alterarStatus(agendamento.id, 'entregue')}
-                            className="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg transition-colors text-sm font-medium"
-                          >
-                            <Check size={16} />
-                            Marcar como Entregue
-                          </button>
-                          <button
-                            onClick={() => abrirWhatsApp(
-                              agendamento.telefone,
-                              agendamento.nomeCompleto,
-                              agendamento.modeloMoto,
-                              agendamento.numeroPedido
-                            )}
-                            className="flex items-center gap-2 bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg transition-colors text-sm font-medium"
-                          >
-                            <MessageCircle size={16} />
-                            WhatsApp
-                          </button>
-                        </>
+                        <button
+                          onClick={() => alterarStatus(agendamento.id, 'entregue')}
+                          className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
+                        >
+                          <Check size={16} />
+                          Marcar como Entregue
+                        </button>
                       ) : (
                         <button
                           onClick={() => alterarStatus(agendamento.id, 'pendente')}
-                          className="flex items-center gap-2 bg-yellow-600 hover:bg-yellow-700 text-white px-4 py-2 rounded-lg transition-colors text-sm font-medium"
+                          className="flex items-center gap-2 bg-yellow-600 text-white px-4 py-2 rounded-lg hover:bg-yellow-700 transition-colors text-sm font-medium"
                         >
                           <Clock size={16} />
                           Marcar como Pendente
                         </button>
                       )}
+                      
                       <button
-                        onClick={() => excluirAgendamento(agendamento.id)}
-                        className="flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg transition-colors text-sm font-medium ml-auto"
+                        onClick={() => excluirAgendamentoHandler(agendamento.id)}
+                        className="flex items-center gap-2 bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition-colors text-sm font-medium"
                       >
                         <X size={16} />
                         Excluir
