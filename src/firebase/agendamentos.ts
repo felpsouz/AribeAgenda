@@ -28,7 +28,7 @@ interface Agendamento {
   dataCadastro: string;
 }
 
-interface ResultadoOperacao<T = any> {
+interface ResultadoOperacao<T = unknown> {
   success: boolean;
   data?: T;
   error?: string;
