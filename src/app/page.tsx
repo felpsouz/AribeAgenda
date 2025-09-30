@@ -68,8 +68,8 @@ const SistemaAribeMotos: React.FC = () => {
     setLoadingData(true);
     try {
       const resultado = await listarAgendamentos();
-      if (resultado.success) {
-        setAgendamentos(resultado.data);
+      if (resultado.success && resultado.data) {
+      setAgendamentos(resultado.data);
       } else {
         mostrarMensagem('Erro ao carregar agendamentos', 'erro');
       }
