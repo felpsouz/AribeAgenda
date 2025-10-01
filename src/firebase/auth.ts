@@ -5,11 +5,13 @@ import {
   User,
   AuthError
 } from 'firebase/auth';
-import { auth } from './config';
+import { doc, getDoc } from 'firebase/firestore';
+import { auth, db } from './config';
 
 interface AuthResult {
   success: boolean;
   user?: User | null;
+  role?: number; // ← ADICIONAR role aqui
   error?: string;
 }
 
@@ -18,26 +20,46 @@ interface LogoutResult {
   error?: string;
 }
 
+// Buscar role do usuário no Firestore
+export const buscarRoleUsuario = async (uid: string): Promise<number | null> => {
+  try {
+    const userDoc = await getDoc(doc(db, 'users', uid));
+    if (userDoc.exists()) {
+      return userDoc.data()?.role ?? null;
+    }
+    return null;
+  } catch (error) {
+    console.error('Erro ao buscar role:', error);
+    return null;
+  }
+};
+
 // Fazer login com email e senha
 export const fazerLogin = async (email: string, senha: string): Promise<AuthResult> => {
   try {
     const userCredential = await signInWithEmailAndPassword(auth, email, senha);
     
-    // Nota: Os dados do usuário (role) devem ser criados manualmente no Firestore
-    // ou através de um script de admin separado
+    // ← BUSCAR O ROLE DO USUÁRIO NO FIRESTORE
+    const role = await buscarRoleUsuario(userCredential.user.uid);
+    
+    if (role === null) {
+      return {
+        success: false,
+        error: 'Usuário sem permissões definidas. Contate o administrador.'
+      };
+    }
     
     return {
       success: true,
-      user: userCredential.user
+      user: userCredential.user,
+      role: role // ← RETORNAR o role
     };
   } catch (error: unknown) {
     let errorMessage = 'Erro ao fazer login';
     
-    // Type guard para verificar se é um AuthError do Firebase
     if (error && typeof error === 'object' && 'code' in error) {
       const authError = error as AuthError;
       
-      // Traduzir erros comuns do Firebase
       switch (authError.code) {
         case 'auth/invalid-email':
           errorMessage = 'E-mail inválido';
@@ -92,12 +114,17 @@ export const fazerLogout = async (): Promise<LogoutResult> => {
   }
 };
 
-// Verificar se usuário está autenticado
-export const verificarAutenticacao = (): Promise<User | null> => {
+// Verificar se usuário está autenticado E retornar role
+export const verificarAutenticacao = async (): Promise<{ user: User | null; role: number | null }> => {
   return new Promise((resolve) => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
       unsubscribe();
-      resolve(user);
+      if (user) {
+        const role = await buscarRoleUsuario(user.uid);
+        resolve({ user, role });
+      } else {
+        resolve({ user: null, role: null });
+      }
     });
   });
 };
