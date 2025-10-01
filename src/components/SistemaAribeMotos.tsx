@@ -1,7 +1,8 @@
 'use client'
 import React, { useState, useEffect } from 'react';
-import { User, Calendar, Phone, Bike, Palette, Hash, Clock, Check, X, Plus, MapPin, MessageCircle, FileText } from 'lucide-react';
+import { User, Calendar, Phone, Bike, Palette, Hash, Clock, Check, X, Plus, MapPin, MessageCircle, FileText, LogOut } from 'lucide-react';
 import { criarAgendamento, listarAgendamentos, atualizarStatus, excluirAgendamento } from '@/firebase/agendamentos';
+import { auth } from '@/firebase/config';
 
 interface Agendamento {
   id: string;
@@ -378,7 +379,6 @@ const SistemaAribeMotos: React.FC = () => {
       }
     };
 
-    // Garantir que o status é válido, usar 'pendente' como padrão
     const statusValido = (status === 'pendente' || status === 'entregue') ? status : 'pendente';
     const { style, label, icon: Icon } = config[statusValido];
 
@@ -388,6 +388,16 @@ const SistemaAribeMotos: React.FC = () => {
         {label}
       </span>
     );
+  };
+
+  const handleLogout = async (): Promise<void> => {
+    try {
+      await auth.signOut();
+      mostrarMensagem('Logout realizado com sucesso!');
+    } catch (error) {
+      console.error('Erro ao fazer logout:', error);
+      mostrarMensagem('Erro ao fazer logout. Tente novamente.', 'erro');
+    }
   };
 
   const agendamentosOrdenados = [...agendamentos].sort((a, b) => {
@@ -448,14 +458,24 @@ const SistemaAribeMotos: React.FC = () => {
                 <p className="text-red-100 text-sm">Sistema de Agendamento - Entrega de Motos</p>
               </div>
             </div>
-            <div className="text-right text-white">
-              <div className="flex items-center gap-2 mb-1">
-                <MapPin size={16} />
-                <span className="text-sm">Aracaju, SE</span>
+            <div className="flex items-center gap-4">
+              <div className="text-right text-white">
+                <div className="flex items-center gap-2 mb-1">
+                  <MapPin size={16} />
+                  <span className="text-sm">Aracaju, SE</span>
+                </div>
+                <div className="text-xs opacity-90">
+                  {agendamentosPendentes} pendentes | {agendamentosEntregues} entregues
+                </div>
               </div>
-              <div className="text-xs opacity-90">
-                {agendamentosPendentes} pendentes | {agendamentosEntregues} entregues
-              </div>
+              <button
+                onClick={handleLogout}
+                className="flex items-center gap-2 bg-white/10 hover:bg-white/20 text-white px-4 py-2 rounded-lg transition-colors backdrop-blur-sm border border-white/20"
+                title="Sair do sistema"
+              >
+                <LogOut size={18} />
+                <span className="hidden sm:inline">Sair</span>
+              </button>
             </div>
           </div>
         </div>
@@ -655,7 +675,7 @@ const SistemaAribeMotos: React.FC = () => {
                 </div>
                 
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  <label className="block text-sm font-semibold text-gray-700mb-2">
                     <Clock size={16} className="inline mr-1" />
                     Horário de Retirada *
                   </label>
@@ -663,37 +683,37 @@ const SistemaAribeMotos: React.FC = () => {
                     value={formCadastro.horarioRetirada}
                     onChange={handleInputChange('horarioRetirada')}
                     className="w-full p-4 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500 transition-colors"
-                    disabled={!dataSelecionada}
                     required
+                    disabled={!dataSelecionada}
                   >
                     <option value="">Selecione um horário</option>
-                    {horariosDisponiveis.map((horario: string) => (
-                      <option key={horario} value={horario}>{horario}</option>
+                    {horariosDisponiveis.map(horario => (
+                      <option key={horario} value={horario}>
+                        {horario}
+                      </option>
                     ))}
                   </select>
                   {dataSelecionada && horariosDisponiveis.length === 0 && (
                     <p className="text-sm text-red-600 mt-1">
                       Nenhum horário disponível para esta data
                     </p>
-                  )}</div>
+                  )}
+                </div>
               </div>
 
-              <div className="mt-8 flex gap-4">
+              <div className="mt-8">
                 <button
                   onClick={cadastrarCliente}
-                  disabled={loading || !dataSelecionada || horariosDisponiveis.length === 0}
-                  className="flex-1 bg-red-600 text-white py-4 px-6 rounded-lg font-semibold hover:bg-red-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-all duration-200 transform hover:scale-105 active:scale-95 shadow-lg"
+                  disabled={loading}
+                  className="w-full bg-red-600 text-white py-4 px-6 rounded-lg font-semibold hover:bg-red-700 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-lg"
                 >
                   {loading ? (
-                    <span className="flex items-center justify-center gap-2">
-                      <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
-                      Cadastrando...
-                    </span>
+                    <>Cadastrando...</>
                   ) : (
-                    <span className="flex items-center justify-center gap-2">
+                    <>
                       <Plus size={20} />
-                      Cadastrar Cliente
-                    </span>
+                      Cadastrar Cliente e Criar Agendamento
+                    </>
                   )}
                 </button>
               </div>
@@ -708,100 +728,111 @@ const SistemaAribeMotos: React.FC = () => {
                 <div className="w-10 h-10 bg-red-100 rounded-lg flex items-center justify-center">
                   <Calendar className="text-red-600" size={20} />
                 </div>
-                <h2 className="text-2xl font-bold text-gray-800">Agendamentos</h2>
+                <h2 className="text-2xl font-bold text-gray-800">Lista de Agendamentos</h2>
               </div>
-              <div className="text-sm text-gray-600">
-                Total: {agendamentos.length} agendamento(s)
+              <div className="flex gap-3">
+                <div className="bg-yellow-50 px-4 py-2 rounded-lg border border-yellow-200">
+                  <span className="text-yellow-800 font-semibold">{agendamentosPendentes} Pendentes</span>
+                </div>
+                <div className="bg-green-50 px-4 py-2 rounded-lg border border-green-200">
+                  <span className="text-green-800 font-semibold">{agendamentosEntregues} Entregues</span>
+                </div>
               </div>
             </div>
 
             {loadingData ? (
-              <div className="flex items-center justify-center py-12">
+              <div className="flex justify-center items-center py-12">
                 <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-red-600"></div>
               </div>
-            ) : agendamentos.length === 0 ? (
+            ) : agendamentosOrdenados.length === 0 ? (
               <div className="text-center py-12">
                 <Calendar className="mx-auto text-gray-400 mb-4" size={48} />
-                <p className="text-gray-600 text-lg">Nenhum agendamento cadastrado</p>
-                <p className="text-gray-500 text-sm mt-2">Cadastre o primeiro cliente para começar</p>
+                <p className="text-gray-500 text-lg">Nenhum agendamento encontrado</p>
               </div>
             ) : (
               <div className="space-y-4">
-                {agendamentosOrdenados.map((agendamento: Agendamento) => (
+                {agendamentosOrdenados.map(agendamento => (
                   <div
                     key={agendamento.id}
-                    className="border border-gray-200 rounded-lg p-6 hover:shadow-md transition-shadow duration-200"
+                    className={`border rounded-xl p-6 transition-all hover:shadow-md ${
+                      agendamento.status === 'entregue' 
+                        ? 'bg-gray-50 border-gray-200' 
+                        : 'bg-white border-gray-300'
+                    }`}
                   >
                     <div className="flex items-start justify-between mb-4">
-                      <div className="flex items-center gap-3">
-                        <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center">
-                          <User className="text-red-600" size={20} />
+                      <div className="flex-1">
+                        <div className="flex items-center gap-3 mb-2">
+                          <h3 className="text-xl font-bold text-gray-800">
+                            {agendamento.nomeCompleto}
+                          </h3>
+                          {getStatusBadge(agendamento.status)}
                         </div>
-                        <div>
-                          <h3 className="font-bold text-lg text-gray-800">{agendamento.nomeCompleto}</h3>
-                          <p className="text-sm text-gray-600">{formatarTelefone(agendamento.telefone)}</p>
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 text-sm text-gray-600">
+                          <div className="flex items-center gap-2">
+                            <Phone size={16} className="text-red-600" />
+                            {formatarTelefone(agendamento.telefone)}
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Bike size={16} className="text-red-600" />
+                            {agendamento.modeloMoto}
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Palette size={16} className="text-red-600" />
+                            {agendamento.cor}
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Hash size={16} className="text-red-600" />
+                            Chassi: {agendamento.chassi}
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <FileText size={16} className="text-red-600" />
+                            Pedido: {agendamento.numeroPedido}
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Calendar size={16} className="text-red-600" />
+                            {formatarData(agendamento.dataRetirada)} - {agendamento.horarioRetirada}
+                          </div>
                         </div>
-                      </div>
-                      {getStatusBadge(agendamento.status)}
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                      <div className="flex items-center gap-2 text-gray-700">
-                        <Bike size={16} className="text-red-600" />
-                        <span className="text-sm"><strong>Modelo:</strong> {agendamento.modeloMoto}</span>
-                      </div>
-                      <div className="flex items-center gap-2 text-gray-700">
-                        <Palette size={16} className="text-red-600" />
-                        <span className="text-sm"><strong>Cor:</strong> {agendamento.cor}</span>
-                      </div>
-                      <div className="flex items-center gap-2 text-gray-700">
-                        <Hash size={16} className="text-red-600" />
-                        <span className="text-sm"><strong>Chassi:</strong> {agendamento.chassi}</span>
-                      </div>
-                      <div className="flex items-center gap-2 text-gray-700">
-                        <FileText size={16} className="text-red-600" />
-                        <span className="text-sm"><strong>Pedido:</strong> {agendamento.numeroPedido}</span>
-                      </div>
-                      <div className="flex items-center gap-2 text-gray-700">
-                        <Calendar size={16} className="text-red-600" />
-                        <span className="text-sm"><strong>Data:</strong> {formatarData(agendamento.dataRetirada)}</span>
-                      </div>
-                      <div className="flex items-center gap-2 text-gray-700">
-                        <Clock size={16} className="text-red-600" />
-                        <span className="text-sm"><strong>Horário:</strong> {agendamento.horarioRetirada}</span>
                       </div>
                     </div>
 
-                    <div className="flex flex-wrap gap-2">
-                      <button
-                        onClick={() => abrirWhatsApp(agendamento.telefone, agendamento.nomeCompleto, agendamento.modeloMoto, agendamento.numeroPedido)}
-                        className="flex items-center gap-2 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors text-sm font-medium"
-                      >
-                        <MessageCircle size={16} />
-                        WhatsApp
-                      </button>
-                      
-                      {agendamento.status === 'pendente' ? (
-                        <button
-                          onClick={() => alterarStatus(agendamento.id, 'entregue')}
-                          className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
-                        >
-                          <Check size={16} />
-                          Marcar como Entregue
-                        </button>
-                      ) : (
+                    <div className="flex flex-wrap gap-2 pt-4 border-t">
+                      {agendamento.status === 'pendente' && (
+                        <>
+                          <button
+                            onClick={() => alterarStatus(agendamento.id, 'entregue')}
+                            className="flex items-center gap-2 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors"
+                          >
+                            <Check size={16} />
+                            Marcar como Entregue
+                          </button>
+                          <button
+                            onClick={() => abrirWhatsApp(
+                              agendamento.telefone,
+                              agendamento.nomeCompleto,
+                              agendamento.modeloMoto,
+                              agendamento.numeroPedido
+                            )}
+                            className="flex items-center gap-2 bg-green-500 text-white px-4 py-2 rounded-lg hover:bg-green-600 transition-colors"
+                          >
+                            <MessageCircle size={16} />
+                            WhatsApp
+                          </button>
+                        </>
+                      )}
+                      {agendamento.status === 'entregue' && (
                         <button
                           onClick={() => alterarStatus(agendamento.id, 'pendente')}
-                          className="flex items-center gap-2 bg-yellow-600 text-white px-4 py-2 rounded-lg hover:bg-yellow-700 transition-colors text-sm font-medium"
+                          className="flex items-center gap-2 bg-yellow-600 text-white px-4 py-2 rounded-lg hover:bg-yellow-700 transition-colors"
                         >
                           <Clock size={16} />
-                          Marcar como Pendente
+                          Reverter para Pendente
                         </button>
                       )}
-                      
                       <button
                         onClick={() => excluirAgendamentoHandler(agendamento.id)}
-                        className="flex items-center gap-2 bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition-colors text-sm font-medium"
+                        className="flex items-center gap-2 bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition-colors"
                       >
                         <X size={16} />
                         Excluir
