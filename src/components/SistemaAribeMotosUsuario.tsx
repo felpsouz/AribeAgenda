@@ -2,6 +2,8 @@
 import { User, Calendar, Phone, Bike, Palette, Hash, Clock, Check, Plus, MapPin, MessageCircle, FileText, LogOut } from 'lucide-react';
 import { criarAgendamento, listarAgendamentos } from '@/firebase/agendamentos';
 import { auth } from '@/firebase/config';
+import React, { useState, useEffect } from "react";
+
 
 interface Agendamento {
   id: string;
