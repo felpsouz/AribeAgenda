@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { verificarAutenticacao } from '@/firebase/auth';
+import { observarAutenticacao } from '@/firebase/auth';
 import { buscarRoleUsuario, UserRole } from '@/firebase/users';
 import LoginAribeMotos from '@/components/LoginAribeMotos';
 import SistemaAribeMotos from '@/components/SistemaAribeMotos';
@@ -12,41 +12,20 @@ const ProtectedRoute = () => {
   const [userRole, setUserRole] = useState<UserRole | null>(null);
 
   useEffect(() => {
-    const verificar = async () => {
-      try {
-        const resultado = await verificarAutenticacao();
-        
-        // Agora 'resultado' tem a estrutura { user, role }
-        if (resultado && resultado.user) {
-          setAutenticado(true);
-          
-          console.log('=== DEBUG AUTENTICAÇÃO ===');
-          console.log('UID do usuário:', resultado.user.uid);
-          console.log('Email do usuário:', resultado.user.email);
-          
-          // Buscar a role do usuário no Firestore
-          const role = await buscarRoleUsuario(resultado.user.uid);
-          setUserRole(role);
-          
-          console.log('Role retornada:', role);
-          console.log('Tipo da role:', typeof role);
-          console.log('Role === 0?', role === 0);
-          console.log('Role === 1?', role === 1);
-          console.log('=========================');
-        } else {
-          setAutenticado(false);
-          setUserRole(null);
-        }
-      } catch (error) {
-        console.error('Erro ao verificar autenticação:', error);
+    // Escuta mudanças de login/logout
+    const unsubscribe = observarAutenticacao(async (user) => {
+      if (user) {
+        setAutenticado(true);
+        const role = await buscarRoleUsuario(user.uid);
+        setUserRole(role);
+      } else {
         setAutenticado(false);
         setUserRole(null);
-      } finally {
-        setCarregando(false);
       }
-    };
+      setCarregando(false);
+    });
 
-    verificar();
+    return () => unsubscribe(); // limpa listener ao desmontar
   }, []);
 
   if (carregando) {
