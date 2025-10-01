@@ -2,8 +2,8 @@
 'use client'
 import React, { useState, useEffect } from 'react';
 import { verificarAutenticacao } from '@/firebase/auth';
-import LoginAribeMotos from '@/components/LoginAribeMotos';
-import SistemaAribeMotos from '@/components/SistemaAribeMotos';
+import LoginAribeMotos from '@/app/LoginAribeMotos';
+import SistemaAribeMotos from '@/app/SistemaAribeMotos';
 import { Bike } from 'lucide-react';
 
 const ProtectedRoute: React.FC = () => {
