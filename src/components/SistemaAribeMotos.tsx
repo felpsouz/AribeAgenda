@@ -990,7 +990,7 @@ const SistemaAribeMotos: React.FC = () => {
                   <div className="text-center py-12 text-gray-500">
                     <FileText size={48} className="mx-auto mb-4 opacity-50" />
                     <p className="text-lg font-medium">Nenhum agendamento cadastrado</p>
-                    <p className="text-sm">Cadastre o primeiro agendamento na aba 'Novo Agendamento'</p>
+                    <p className="text-sm">Cadastre o primeiro agendamento na aba Novo Agendamento</p>
                   </div>
                 ) : (
                   <div className="space-y-3">
