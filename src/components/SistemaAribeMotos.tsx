@@ -1,7 +1,8 @@
 'use client'
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { User, Calendar, Phone, Bike, Palette, Hash, Clock, Check, X, Plus, MapPin, MessageCircle, FileText, LogOut, Truck } from 'lucide-react';
 import { criarAgendamento, listarAgendamentos, atualizarStatus, excluirAgendamento } from '@/firebase/agendamentos';
+import { criarViagem, listarViagens, atualizarStatusViagem as atualizarStatusViagemFirebase, excluirViagem as excluirViagemFirebase } from '@/firebase/viagens';
 import { auth } from '@/firebase/config';
 
 interface Agendamento {
@@ -105,12 +106,17 @@ const SistemaAribeMotos: React.FC = () => {
 
   const locaisDisponiveis = ['Aracaju', 'Socorro', 'Itabaiana', 'Outros'];
 
-  const carregarAgendamentos = async () => {
+  const mostrarMensagem = useCallback((texto: string, tipo: 'sucesso' | 'erro' = 'sucesso'): void => {
+    setMensagem({ texto, tipo });
+    setTimeout(() => setMensagem(null), 4000);
+  }, []);
+
+  const carregarAgendamentos = useCallback(async () => {
     setLoadingData(true);
     try {
       const resultado = await listarAgendamentos();
       if (resultado.success && resultado.data) {
-        setAgendamentos(resultado.data);
+        setAgendamentos(resultado.data as Agendamento[]);
       } else {
         mostrarMensagem('Erro ao carregar agendamentos', 'erro');
       }
@@ -120,19 +126,23 @@ const SistemaAribeMotos: React.FC = () => {
     } finally {
       setLoadingData(false);
     }
-  };
+  }, [mostrarMensagem]);
 
-  const carregarViagens = () => {
-    const viagensSalvas = localStorage.getItem('viagens');
-    if (viagensSalvas) {
-      setViagens(JSON.parse(viagensSalvas));
+  const carregarViagens = useCallback(async () => {
+    try {
+      const resultado = await listarViagens();
+      if (resultado.success && resultado.data) {
+        setViagens(resultado.data as Viagem[]);
+      }
+    } catch (error) {
+      console.error('Erro ao carregar viagens:', error);
     }
-  };
+  }, []);
 
-  const salvarViagensStorage = (novasViagens: Viagem[]) => {
-    localStorage.setItem('viagens', JSON.stringify(novasViagens));
-    setViagens(novasViagens);
-  };
+  useEffect(() => {
+    carregarAgendamentos();
+    carregarViagens();
+  }, [carregarAgendamentos, carregarViagens]);
 
   const salvarAgendamento = async (novoAgendamento: Omit<Agendamento, 'dataCadastro'>) => {
     try {
@@ -176,34 +186,47 @@ const SistemaAribeMotos: React.FC = () => {
     }
   };
 
-  const criarViagem = (novaViagem: Omit<Viagem, 'dataCadastro'>) => {
-    const viagemComData: Viagem = {
-      ...novaViagem,
-      dataCadastro: new Date().toISOString()
-    };
-    const novasViagens = [...viagens, viagemComData];
-    salvarViagensStorage(novasViagens);
-    return true;
+  const salvarViagem = async (novaViagem: Omit<Viagem, 'dataCadastro'>) => {
+    try {
+      const resultado = await criarViagem(novaViagem);
+      if (resultado.success) {
+        await carregarViagens();
+        return true;
+      }
+      return false;
+    } catch (error) {
+      console.error('Erro ao salvar viagem:', error);
+      return false;
+    }
   };
 
-  const atualizarStatusViagem = (id: string, novoStatus: StatusViagemType) => {
-    const novasViagens = viagens.map(v => 
-      v.id === id ? { ...v, status: novoStatus } : v
-    );
-    salvarViagensStorage(novasViagens);
-    return true;
+  const atualizarStatusViagem = async (id: string, novoStatus: StatusViagemType) => {
+    try {
+      const resultado = await atualizarStatusViagemFirebase(id, novoStatus);
+      if (resultado.success) {
+        await carregarViagens();
+        return true;
+      }
+      return false;
+    } catch (error) {
+      console.error('Erro ao atualizar status da viagem:', error);
+      return false;
+    }
   };
 
-  const excluirViagem = (id: string) => {
-    const novasViagens = viagens.filter(v => v.id !== id);
-    salvarViagensStorage(novasViagens);
-    return true;
+  const deletarViagem = async (id: string) => {
+    try {
+      const resultado = await excluirViagemFirebase(id);
+      if (resultado.success) {
+        await carregarViagens();
+        return true;
+      }
+      return false;
+    } catch (error) {
+      console.error('Erro ao excluir viagem:', error);
+      return false;
+    }
   };
-
-  useEffect(() => {
-    carregarAgendamentos();
-    carregarViagens();
-  }, []);
 
   const verificarHorarioValido = (data: string, horario: string): boolean => {
     const agora = new Date();
@@ -214,7 +237,7 @@ const SistemaAribeMotos: React.FC = () => {
     return diferencaHoras >= 6;
   };
 
-  const gerarHorariosDisponiveis = (data: string): string[] => {
+  const gerarHorariosDisponiveis = useCallback((data: string): string[] => {
     const [ano, mes, dia] = data.split('-').map(Number);
     const dataObj = new Date(ano, mes - 1, dia);
     const diaSemana = dataObj.getDay();
@@ -243,13 +266,13 @@ const SistemaAribeMotos: React.FC = () => {
     }
 
     return horarios.filter(horario => verificarHorarioValido(data, horario));
-  };
+  }, []);
 
-  const obterHorariosOcupados = (data: string): string[] => {
+  const obterHorariosOcupados = useCallback((data: string): string[] => {
     return agendamentos
       .filter(agendamento => agendamento.dataRetirada === data)
       .map(agendamento => agendamento.horarioRetirada);
-  };
+  }, [agendamentos]);
 
   useEffect(() => {
     if (dataSelecionada) {
@@ -264,12 +287,7 @@ const SistemaAribeMotos: React.FC = () => {
     } else {
       setHorariosDisponiveis([]);
     }
-  }, [dataSelecionada, agendamentos, formCadastro.horarioRetirada]);
-
-  const mostrarMensagem = (texto: string, tipo: 'sucesso' | 'erro' = 'sucesso'): void => {
-    setMensagem({ texto, tipo });
-    setTimeout(() => setMensagem(null), 4000);
-  };
+  }, [dataSelecionada, formCadastro.horarioRetirada, gerarHorariosDisponiveis, obterHorariosOcupados]);
 
   const validarFormulario = (): boolean => {
     const { nome, sobrenome, telefone, modeloMoto, cor, chassi, numeroPedido, dataRetirada, horarioRetirada } = formCadastro;
@@ -416,7 +434,7 @@ const SistemaAribeMotos: React.FC = () => {
     setLoading(false);
   };
 
-  const cadastrarViagem = (): void => {
+  const cadastrarViagem = async (): Promise<void> => {
     if (!validarFormularioViagem()) return;
     
     setLoading(true);
@@ -432,7 +450,7 @@ const SistemaAribeMotos: React.FC = () => {
       status: 'pendente'
     };
 
-    const sucesso = criarViagem(novaViagem);
+    const sucesso = await salvarViagem(novaViagem);
     
     if (sucesso) {
       setFormViagem({
@@ -467,8 +485,8 @@ const SistemaAribeMotos: React.FC = () => {
     }
   };
 
-  const alterarStatusViagem = (id: string, novoStatus: StatusViagemType): void => {
-    const sucesso = atualizarStatusViagem(id, novoStatus);
+  const alterarStatusViagem = async (id: string, novoStatus: StatusViagemType): Promise<void> => {
+    const sucesso = await atualizarStatusViagem(id, novoStatus);
     
     if (sucesso) {
       mostrarMensagem(
@@ -508,9 +526,9 @@ const SistemaAribeMotos: React.FC = () => {
     }
   };
 
-  const excluirViagemHandler = (id: string): void => {
+  const excluirViagemHandler = async (id: string): Promise<void> => {
     if (window.confirm('Tem certeza que deseja excluir esta viagem?')) {
-      const sucesso = excluirViagem(id);
+      const sucesso = await deletarViagem(id);
       
       if (sucesso) {
         mostrarMensagem('Viagem excluída com sucesso!');
@@ -700,614 +718,634 @@ const SistemaAribeMotos: React.FC = () => {
       </div>
 
       {mensagem && (
-        <div className="max-w-6xl mx-auto px-4 py-3">
-          <div className={`p-4 rounded-lg shadow-lg border ${
-            mensagem.tipo === 'erro' 
-              ? 'bg-red-50 border-red-200 text-red-700' 
-              : 'bg-green-50 border-green-200 text-green-700'
-          }`}>
-            <div className="flex items-center gap-2">
-              {mensagem.tipo === 'erro' ? <X size={16} /> : <Check size={16} />}
-              {mensagem.texto}
-            </div>
+        <div className="max-w-6xl mx-auto px-4 mt-4">
+          <div
+            className={`p-4 rounded-lg shadow-md flex items-center gap-3 ${
+              mensagem.tipo === 'sucesso'
+                ? 'bg-green-50 border border-green-200 text-green-800'
+                : 'bg-red-50 border border-red-200 text-red-800'
+            }`}
+          >
+            {mensagem.tipo === 'sucesso' ? (
+              <Check size={20} className="flex-shrink-0" />
+            ) : (
+              <X size={20} className="flex-shrink-0" />
+            )}
+            <span className="font-medium">{mensagem.texto}</span>
           </div>
         </div>
       )}
 
-      <div className="max-w-6xl mx-auto px-4 py-4">
-        <nav className="flex flex-wrap gap-3 mb-6">
-          <button
-            onClick={() => setActiveTab('cadastro')}
-            className={`flex items-center gap-2 px-6 py-3 rounded-lg font-medium transition-all ${
-              activeTab === 'cadastro'
-                ? 'bg-red-600 text-white shadow-md'
-                : 'bg-white text-gray-700 hover:bg-gray-50'
-            }`}
-          >
-            <Plus size={18} />
-            Novo Agendamento
-          </button>
-          <button
-            onClick={() => setActiveTab('agendamentos')}
-            className={`flex items-center gap-2 px-6 py-3 rounded-lg font-medium transition-all ${
-              activeTab === 'agendamentos'
-                ? 'bg-red-600 text-white shadow-md'
-                : 'bg-white text-gray-700 hover:bg-gray-50'
-            }`}
-          >
-            <Calendar size={18} />
-            Agendamentos ({agendamentosPendentes})
-          </button>
-          <button
-            onClick={() => setActiveTab('viagens')}
-            className={`flex items-center gap-2 px-6 py-3 rounded-lg font-medium transition-all ${
-              activeTab === 'viagens'
-                ? 'bg-red-600 text-white shadow-md'
-                : 'bg-white text-gray-700 hover:bg-gray-50'
-            }`}
-          >
-            <Truck size={18} />
-            Viagens ({viagensPendentes})
-          </button>
-        </nav>
-
-        {activeTab === 'cadastro' && (
-          <div className="bg-white rounded-xl shadow-md p-6">
-            <h2 className="text-2xl font-bold text-gray-800 mb-6">Novo Agendamento de Retirada</h2>
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-              <div>
-                <label className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-2">
-                  <User size={16} />
-                  Nome
-                </label>
-                <input
-                  type="text"
-                  value={formCadastro.nome}
-                  onChange={handleInputChange('nome')}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
-                  placeholder="Digite o nome"
-                />
-              </div>
-
-              <div>
-                <label className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-2">
-                  <User size={16} />
-                  Sobrenome
-                </label>
-                <input
-                  type="text"
-                  value={formCadastro.sobrenome}
-                  onChange={handleInputChange('sobrenome')}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
-                  placeholder="Digite o sobrenome"
-                />
-              </div>
-
-              <div>
-                <label className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-2">
-                  <Phone size={16} />
-                  Telefone
-                </label>
-                <input
-                  type="tel"
-                  value={formCadastro.telefone}
-                  onChange={handleInputChange('telefone')}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
-                  placeholder="(00) 00000-0000"
-                />
-              </div>
-
-              <div>
-                <label className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-2">
-                  <Bike size={16} />
-                  Modelo da Moto
-                </label>
-                <input
-                  type="text"
-                  value={formCadastro.modeloMoto}
-                  onChange={handleInputChange('modeloMoto')}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
-                  placeholder="Ex: Honda CG 160"
-                />
-              </div>
-
-              <div>
-                <label className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-2">
-                  <Palette size={16} />
-                  Cor
-                </label>
-                <input
-                  type="text"
-                  value={formCadastro.cor}
-                  onChange={handleInputChange('cor')}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
-                  placeholder="Ex: Vermelha"
-                />
-              </div>
-
-              <div>
-                <label className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-2">
-                  <Hash size={16} />
-                  Chassi
-                </label>
-                <input
-                  type="text"
-                  value={formCadastro.chassi}
-                  onChange={handleInputChange('chassi')}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
-                  placeholder="Digite o chassi"
-                />
-              </div>
-
-              <div>
-                <label className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-2">
-                  <FileText size={16} />
-                  Número do Pedido
-                </label>
-                <input
-                  type="text"
-                  value={formCadastro.numeroPedido}
-                  onChange={handleInputChange('numeroPedido')}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
-                  placeholder="Digite o número do pedido"
-                />
-              </div>
-
-              <div>
-                <label className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-2">
-                  <Calendar size={16} />
-                  Data de Retirada
-                </label>
-                <input
-                  type="date"
-                  value={dataSelecionada}
-                  onChange={handleDataChange}
-                  min={dataMinima}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
-                />
-                {dataSelecionada && (
-                  <p className="text-xs text-gray-500 mt-1">
-                    {obterNomeDiaSemana(dataSelecionada)} - {formatarData(dataSelecionada)}
-                  </p>
-                )}
-              </div>
-
-              <div>
-                <label className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-2">
-                  <Clock size={16} />
-                  Horário de Retirada
-                </label>
-                <select
-                  value={formCadastro.horarioRetirada}
-                  onChange={handleInputChange('horarioRetirada')}
-                  disabled={!dataSelecionada}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent disabled:bg-gray-100"
-                >
-                  <option value="">Selecione o horário</option>
-                  {horariosDisponiveis.map(horario => (
-                    <option key={horario} value={horario}>
-                      {horario}
-                    </option>
-                  ))}
-                </select>
-                {dataSelecionada && horariosDisponiveis.length === 0 && (
-                  <p className="text-xs text-red-500 mt-1">
-                    Nenhum horário disponível para esta data
-                  </p>
-                )}
-              </div>
-            </div>
-
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
-              <p className="text-sm text-blue-800">
-                <strong>Atenção:</strong> Agendamentos devem ser feitos com pelo menos 6 horas de antecedência.
-                Horário limite para agendamento: {obterHorarioCorte()}
-              </p>
-            </div>
-
+      <div className="max-w-6xl mx-auto px-4 py-6">
+        <div className="bg-white rounded-xl shadow-md mb-6">
+          <div className="flex border-b border-gray-200">
             <button
-              onClick={cadastrarCliente}
-              disabled={loading}
-              className="w-full bg-red-600 hover:bg-red-700 text-white font-medium py-3 px-6 rounded-lg transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              onClick={() => setActiveTab('cadastro')}
+              className={`flex-1 px-6 py-4 font-medium text-sm flex items-center justify-center gap-2 transition-colors ${
+                activeTab === 'cadastro'
+                  ? 'text-red-600 border-b-2 border-red-600 bg-red-50'
+                  : 'text-gray-600 hover:bg-gray-50'
+              }`}
             >
-              {loading ? (
-                <>
-                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
-                  Processando...
-                </>
-              ) : (
-                <>
-                  <Plus size={18} />
-                  Cadastrar Agendamento
-                </>
+              <Plus size={18} />
+              Novo Agendamento
+            </button>
+            <button
+              onClick={() => setActiveTab('agendamentos')}
+              className={`flex-1 px-6 py-4 font-medium text-sm flex items-center justify-center gap-2 transition-colors relative ${
+                activeTab === 'agendamentos'
+                  ? 'text-red-600 border-b-2 border-red-600 bg-red-50'
+                  : 'text-gray-600 hover:bg-gray-50'
+              }`}
+            >
+              <FileText size={18} />
+              Agendamentos
+              {agendamentosPendentes > 0 && (
+                <span className="absolute top-2 right-2 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
+                  {agendamentosPendentes}
+                </span>
+              )}
+            </button>
+            <button
+              onClick={() => setActiveTab('viagens')}
+              className={`flex-1 px-6 py-4 font-medium text-sm flex items-center justify-center gap-2 transition-colors relative ${
+                activeTab === 'viagens'
+                  ? 'text-red-600 border-b-2 border-red-600 bg-red-50'
+                  : 'text-gray-600 hover:bg-gray-50'
+              }`}
+            >
+              <Truck size={18} />
+              Viagens
+              {viagensPendentes > 0 && (
+                <span className="absolute top-2 right-2 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
+                  {viagensPendentes}
+                </span>
               )}
             </button>
           </div>
-        )}
 
-        {activeTab === 'agendamentos' && (
-          <div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-              <div className="bg-white rounded-xl shadow-md p-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-gray-600">Pendentes</p>
-                    <p className="text-3xl font-bold text-yellow-600">{agendamentosPendentes}</p>
+          <div className="p-6">
+            {activeTab === 'cadastro' && (
+              <div className="space-y-6">
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 flex items-start gap-3">
+                  <Clock className="text-blue-600 flex-shrink-0 mt-1" size={20} />
+                  <div className="text-sm text-blue-800">
+                    <p className="font-medium mb-1">Importante: Agendamento Antecipado</p>
+                    <p>Os agendamentos devem ser feitos com pelo menos 6 horas de antecedência.</p>
+                    <p className="mt-1 text-xs">Horário de corte atual: {obterHorarioCorte()}</p>
                   </div>
-                  <Clock className="text-yellow-600" size={40} />
                 </div>
-              </div>
-              <div className="bg-white rounded-xl shadow-md p-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-gray-600">Entregues</p>
-                    <p className="text-3xl font-bold text-green-600">{agendamentosEntregues}</p>
-                  </div>
-                  <Check className="text-green-600" size={40} />
-                </div>
-              </div>
-            </div>
 
-            <div className="bg-white rounded-xl shadow-md overflow-hidden">
-              <div className="p-6 border-b border-gray-200">
-                <h2 className="text-2xl font-bold text-gray-800">Lista de Agendamentos</h2>
+                <div className="grid md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-2">
+                      <User size={16} />
+                      Nome
+                    </label>
+                    <input
+                      type="text"
+                      value={formCadastro.nome}
+                      onChange={handleInputChange('nome')}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                      placeholder="Digite o nome"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-2">
+                      <User size={16} />
+                      Sobrenome
+                    </label>
+                    <input
+                      type="text"
+                      value={formCadastro.sobrenome}
+                      onChange={handleInputChange('sobrenome')}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                      placeholder="Digite o sobrenome"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-2">
+                      <Phone size={16} />
+                      Telefone
+                    </label>
+                    <input
+                      type="tel"
+                      value={formCadastro.telefone}
+                      onChange={handleInputChange('telefone')}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                      placeholder="(00) 00000-0000"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-2">
+                      <Bike size={16} />
+                      Modelo da Moto
+                    </label>
+                    <input
+                      type="text"
+                      value={formCadastro.modeloMoto}
+                      onChange={handleInputChange('modeloMoto')}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                      placeholder="Ex: Honda CG 160"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-2">
+                      <Palette size={16} />
+                      Cor
+                    </label>
+                    <input
+                      type="text"
+                      value={formCadastro.cor}
+                      onChange={handleInputChange('cor')}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                      placeholder="Ex: Vermelha"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-2">
+                      <Hash size={16} />
+                      Chassi
+                    </label>
+                    <input
+                      type="text"
+                      value={formCadastro.chassi}
+                      onChange={handleInputChange('chassi')}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                      placeholder="Digite o chassi"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-2">
+                      <FileText size={16} />
+                      Número do Pedido
+                    </label>
+                    <input
+                      type="text"
+                      value={formCadastro.numeroPedido}
+                      onChange={handleInputChange('numeroPedido')}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                      placeholder="Digite o número do pedido"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-2">
+                      <Calendar size={16} />
+                      Data de Retirada
+                    </label>
+                    <input
+                      type="date"
+                      value={dataSelecionada}
+                      onChange={handleDataChange}
+                      min={dataMinima}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                    />
+                    {dataSelecionada && (
+                      <p className="text-xs text-gray-600 mt-1">
+                        {obterNomeDiaSemana(dataSelecionada)} - {formatarData(dataSelecionada)}
+                      </p>
+                    )}
+                  </div>
+
+                  <div>
+                    <label className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-2">
+                      <Clock size={16} />
+                      Horário de Retirada
+                    </label>
+                    <select
+                      value={formCadastro.horarioRetirada}
+                      onChange={handleInputChange('horarioRetirada')}
+                      disabled={!dataSelecionada || horariosDisponiveis.length === 0}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed"
+                    >
+                      <option value="">
+                        {!dataSelecionada
+                          ? 'Selecione uma data primeiro'
+                          : horariosDisponiveis.length === 0
+                          ? 'Nenhum horário disponível'
+                          : 'Selecione um horário'}
+                      </option>
+                      {horariosDisponiveis.map((horario) => (
+                        <option key={horario} value={horario}>
+                          {horario}
+                        </option>
+                      ))}
+                    </select>
+                    {dataSelecionada && horariosDisponiveis.length === 0 && (
+                      <p className="text-xs text-red-600 mt-1">
+                        Todos os horários estão ocupados ou fora do prazo mínimo
+                      </p>
+                    )}
+                  </div>
+                </div>
+
+                <button
+                  onClick={cadastrarCliente}
+                  disabled={loading}
+                  className="w-full bg-red-600 hover:bg-red-700 text-white font-medium py-3 px-6 rounded-lg transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                >
+                  {loading ? (
+                    <>
+                      <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+                      Processando...
+                    </>
+                  ) : (
+                    <>
+                      <Plus size={20} />
+                      Cadastrar Agendamento
+                    </>
+                  )}
+                </button>
               </div>
-              
-              {loadingData ? (
-                <div className="p-12 text-center">
-                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-red-600 mx-auto"></div>
-                  <p className="text-gray-600 mt-4">Carregando agendamentos...</p>
+            )}
+
+            {activeTab === 'agendamentos' && (
+              <div className="space-y-4">
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-xl font-bold text-gray-800">
+                    Agendamentos ({agendamentos.length})
+                  </h2>
+                  <div className="flex gap-2 text-sm">
+                    <span className="px-3 py-1 bg-yellow-100 text-yellow-800 rounded-full">
+                      {agendamentosPendentes} Pendentes
+                    </span>
+                    <span className="px-3 py-1 bg-green-100 text-green-800 rounded-full">
+                      {agendamentosEntregues} Entregues
+                    </span>
+                  </div>
                 </div>
-              ) : agendamentosOrdenados.length === 0 ? (
-                <div className="p-12 text-center">
-                  <Calendar className="mx-auto text-gray-400 mb-4" size={48} />
-                  <p className="text-gray-600">Nenhum agendamento cadastrado</p>
-                </div>
-              ) : (
-                <div className="divide-y divide-gray-200">
-                  {agendamentosOrdenados.map((agendamento) => (
-                    <div key={agendamento.id} className="p-6 hover:bg-gray-50 transition-colors">
-                      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                        <div className="flex-1">
-                          <div className="flex items-center gap-3 mb-3">
-                            <h3 className="text-lg font-semibold text-gray-800">
+
+                {loadingData ? (
+                  <div className="flex items-center justify-center py-12">
+                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-red-600"></div>
+                  </div>
+                ) : agendamentos.length === 0 ? (
+                  <div className="text-center py-12 text-gray-500">
+                    <FileText size={48} className="mx-auto mb-4 opacity-50" />
+                    <p className="text-lg font-medium">Nenhum agendamento cadastrado</p>
+                    <p className="text-sm">Cadastre o primeiro agendamento na aba "Novo Agendamento"</p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {agendamentosOrdenados.map((agendamento) => (
+                      <div
+                        key={agendamento.id}
+                        className="bg-gray-50 border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow"
+                      >
+                        <div className="flex items-start justify-between mb-3">
+                          <div className="flex-1">
+                            <h3 className="font-semibold text-gray-800 text-lg mb-1">
                               {agendamento.nomeCompleto}
                             </h3>
-                            {getStatusBadge(agendamento.status)}
+                            <p className="text-sm text-gray-600">{formatarTelefone(agendamento.telefone)}</p>
                           </div>
-                          
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm text-gray-600">
-                            <div className="flex items-center gap-2">
-                              <Phone size={14} />
-                              {formatarTelefone(agendamento.telefone)}
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <Bike size={14} />
-                              {agendamento.modeloMoto}
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <Palette size={14} />
-                              {agendamento.cor}
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <Hash size={14} />
-                              Chassi: {agendamento.chassi}
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <FileText size={14} />
-                              Pedido: {agendamento.numeroPedido}
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <Calendar size={14} />
-                              {formatarData(agendamento.dataRetirada)} às {agendamento.horarioRetirada}
-                            </div>
+                          {getStatusBadge(agendamento.status)}
+                        </div>
+
+                        <div className="grid md:grid-cols-2 gap-3 mb-3 text-sm">
+                          <div className="flex items-center gap-2 text-gray-700">
+                            <Bike size={16} className="text-red-600" />
+                            <span>
+                              <strong>Moto:</strong> {agendamento.modeloMoto} - {agendamento.cor}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-2 text-gray-700">
+                            <Hash size={16} className="text-red-600" />
+                            <span>
+                              <strong>Chassi:</strong> {agendamento.chassi}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-2 text-gray-700">
+                            <FileText size={16} className="text-red-600" />
+                            <span>
+                              <strong>Pedido:</strong> {agendamento.numeroPedido}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-2 text-gray-700">
+                            <Calendar size={16} className="text-red-600" />
+                            <span>
+                              <strong>Retirada:</strong> {formatarData(agendamento.dataRetirada)} às{' '}
+                              {agendamento.horarioRetirada}
+                            </span>
                           </div>
                         </div>
 
-                        <div className="flex flex-wrap gap-2">
+                        <div className="flex gap-2 flex-wrap">
                           <button
-                            onClick={() => abrirWhatsApp(
-                              agendamento.telefone,
-                              agendamento.nomeCompleto,
-                              agendamento.modeloMoto,
-                              agendamento.numeroPedido
+                            onClick={() =>
+                              alterarStatus(
+                                agendamento.id,
+                                agendamento.status === 'pendente' ? 'entregue' : 'pendente'
+                              )
+                            }
+                            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                              agendamento.status === 'pendente'
+                                ? 'bg-green-600 hover:bg-green-700 text-white'
+                                : 'bg-yellow-600 hover:bg-yellow-700 text-white'
+                            }`}
+                          >
+                            {agendamento.status === 'pendente' ? (
+                              <>
+                                <Check size={16} />
+                                Marcar como Entregue
+                              </>
+                            ) : (
+                              <>
+                                <Clock size={16} />
+                                Marcar como Pendente
+                              </>
                             )}
-                            className="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg transition-colors text-sm"
-                            title="Enviar mensagem no WhatsApp"
+                          </button>
+
+                          <button
+                            onClick={() =>
+                              abrirWhatsApp(
+                                agendamento.telefone,
+                                agendamento.nomeCompleto,
+                                agendamento.modeloMoto,
+                                agendamento.numeroPedido
+                              )
+                            }
+                            className="flex items-center gap-2 bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
                           >
                             <MessageCircle size={16} />
                             WhatsApp
                           </button>
-                          
-                          {agendamento.status === 'pendente' ? (
-                            <button
-                              onClick={() => alterarStatus(agendamento.id, 'entregue')}
-                              className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition-colors text-sm"
-                              title="Marcar como entregue"
-                            >
-                              <Check size={16} />
-                              Entregar
-                            </button>
-                          ) : (
-                            <button
-                              onClick={() => alterarStatus(agendamento.id, 'pendente')}
-                              className="flex items-center gap-2 bg-yellow-600 hover:bg-yellow-700 text-white px-4 py-2 rounded-lg transition-colors text-sm"
-                              title="Marcar como pendente"
-                            >
-                              <Clock size={16} />
-                              Pendente
-                            </button>
-                          )}
-                          
+
                           <button
                             onClick={() => excluirAgendamentoHandler(agendamento.id)}
-                            className="flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg transition-colors text-sm"
-                            title="Excluir agendamento"
+                            className="flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
                           >
                             <X size={16} />
                             Excluir
                           </button>
                         </div>
                       </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {activeTab === 'viagens' && (
+              <div className="space-y-6">
+                <div className="bg-white rounded-lg border border-gray-200 p-6 mb-6">
+                  <h3 className="text-lg font-semibold text-gray-800 mb-4">Nova Viagem</h3>
+                  
+                  <div className="grid md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-2">
+                        <MapPin size={16} />
+                        Origem
+                      </label>
+                      <select
+                        value={formViagem.origem}
+                        onChange={handleViagemInputChange('origem')}
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                      >
+                        <option value="">Selecione a origem</option>
+                        {locaisDisponiveis.map((local) => (
+                          <option key={local} value={local}>
+                            {local}
+                          </option>
+                        ))}
+                      </select>
                     </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-        )}
 
-        {activeTab === 'viagens' && (
-          <div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-              <div className="bg-white rounded-xl shadow-md p-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-gray-600">Pendentes</p>
-                    <p className="text-3xl font-bold text-yellow-600">{viagensPendentes}</p>
-                  </div>
-                  <Clock className="text-yellow-600" size={40} />
-                </div>
-              </div>
-              <div className="bg-white rounded-xl shadow-md p-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-gray-600">Concluídas</p>
-                    <p className="text-3xl font-bold text-green-600">{viagensConcluidas}</p>
-                  </div>
-                  <Check className="text-green-600" size={40} />
-                </div>
-              </div>
-            </div>
+                    {formViagem.origem === 'Outros' && (
+                      <div>
+                        <label className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-2">
+                          <MapPin size={16} />
+                          Especifique a Origem
+                        </label>
+                        <input
+                          type="text"
+                          value={formViagem.origemOutros}
+                          onChange={handleViagemInputChange('origemOutros')}
+                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                          placeholder="Digite a origem"
+                        />
+                      </div>
+                    )}
 
-            <div className="bg-white rounded-xl shadow-md p-6 mb-6">
-              <h2 className="text-2xl font-bold text-gray-800 mb-6">Cadastrar Nova Viagem</h2>
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-                <div>
-                  <label className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-2">
-                    <MapPin size={16} />
-                    Origem
-                  </label>
-                  <select
-                    value={formViagem.origem}
-                    onChange={handleViagemInputChange('origem')}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                    <div>
+                      <label className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-2">
+                        <MapPin size={16} />
+                        Destino
+                      </label>
+                      <select
+                        value={formViagem.destino}
+                        onChange={handleViagemInputChange('destino')}
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                      >
+                        <option value="">Selecione o destino</option>
+                        {locaisDisponiveis.map((local) => (
+                          <option key={local} value={local}>
+                            {local}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {formViagem.destino === 'Outros' && (
+                      <div>
+                        <label className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-2">
+                          <MapPin size={16} />
+                          Especifique o Destino
+                        </label>
+                        <input
+                          type="text"
+                          value={formViagem.destinoOutros}
+                          onChange={handleViagemInputChange('destinoOutros')}
+                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                          placeholder="Digite o destino"
+                        />
+                      </div>
+                    )}
+
+                    <div>
+                      <label className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-2">
+                        <Bike size={16} />
+                        Modelo da Moto
+                      </label>
+                      <input
+                        type="text"
+                        value={formViagem.modeloMoto}
+                        onChange={handleViagemInputChange('modeloMoto')}
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                        placeholder="Ex: Honda CG 160"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-2">
+                        <Palette size={16} />
+                        Cor
+                      </label>
+                      <input
+                        type="text"
+                        value={formViagem.cor}
+                        onChange={handleViagemInputChange('cor')}
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                        placeholder="Ex: Vermelha"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-2">
+                        <Hash size={16} />
+                        Chassi
+                      </label>
+                      <input
+                        type="text"
+                        value={formViagem.chassi}
+                        onChange={handleViagemInputChange('chassi')}
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                        placeholder="Digite o chassi"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-2">
+                        <FileText size={16} />
+                        Número do Pedido
+                      </label>
+                      <input
+                        type="text"
+                        value={formViagem.numeroPedido}
+                        onChange={handleViagemInputChange('numeroPedido')}
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                        placeholder="Digite o número do pedido"
+                      />
+                    </div>
+                  </div>
+
+                  <button
+                    onClick={cadastrarViagem}
+                    disabled={loading}
+                    className="w-full mt-4 bg-red-600 hover:bg-red-700 text-white font-medium py-3 px-6 rounded-lg transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                   >
-                    <option value="">Selecione a origem</option>
-                    {locaisDisponiveis.map(local => (
-                      <option key={local} value={local}>{local}</option>
-                    ))}
-                  </select>
+                    {loading ? (
+                      <>
+                        <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+                        Processando...
+                      </>
+                    ) : (
+                      <>
+                        <Plus size={20} />
+                        Cadastrar Viagem
+                      </>
+                    )}
+                  </button>
                 </div>
 
-                {formViagem.origem === 'Outros' && (
-                  <div>
-                    <label className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-2">
-                      <MapPin size={16} />
-                      Especificar Origem
-                    </label>
-                    <input
-                      type="text"
-                      value={formViagem.origemOutros}
-                      onChange={handleViagemInputChange('origemOutros')}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
-                      placeholder="Digite a origem"
-                    />
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <h2 className="text-xl font-bold text-gray-800">Viagens ({viagens.length})</h2>
+                    <div className="flex gap-2 text-sm">
+                      <span className="px-3 py-1 bg-yellow-100 text-yellow-800 rounded-full">
+                        {viagensPendentes} Pendentes
+                      </span>
+                      <span className="px-3 py-1 bg-green-100 text-green-800 rounded-full">
+                        {viagensConcluidas} Concluídas
+                      </span>
+                    </div>
                   </div>
-                )}
 
-                <div>
-                  <label className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-2">
-                    <MapPin size={16} />
-                    Destino
-                  </label>
-                  <select
-                    value={formViagem.destino}
-                    onChange={handleViagemInputChange('destino')}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
-                  >
-                    <option value="">Selecione o destino</option>
-                    {locaisDisponiveis.map(local => (
-                      <option key={local} value={local}>{local}</option>
-                    ))}
-                  </select>
-                </div>
-
-                {formViagem.destino === 'Outros' && (
-                  <div>
-                    <label className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-2">
-                      <MapPin size={16} />
-                      Especificar Destino
-                    </label>
-                    <input
-                      type="text"
-                      value={formViagem.destinoOutros}
-                      onChange={handleViagemInputChange('destinoOutros')}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
-                      placeholder="Digite o destino"
-                    />
-                  </div>
-                )}
-
-                <div>
-                  <label className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-2">
-                    <Bike size={16} />
-                    Modelo da Moto
-                  </label>
-                  <input
-                    type="text"
-                    value={formViagem.modeloMoto}
-                    onChange={handleViagemInputChange('modeloMoto')}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
-                    placeholder="Ex: Honda CG 160"
-                  />
-                </div>
-
-                <div>
-                  <label className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-2">
-                    <Palette size={16} />
-                    Cor
-                  </label>
-                  <input
-                    type="text"
-                    value={formViagem.cor}
-                    onChange={handleViagemInputChange('cor')}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
-                    placeholder="Ex: Vermelha"
-                  />
-                </div>
-
-                <div>
-                  <label className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-2">
-                    <Hash size={16} />
-                    Chassi
-                  </label>
-                  <input
-                    type="text"
-                    value={formViagem.chassi}
-                    onChange={handleViagemInputChange('chassi')}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
-                    placeholder="Digite o chassi"
-                  />
-                </div>
-
-                <div>
-                  <label className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-2">
-                    <FileText size={16} />
-                    Número do Pedido
-                  </label>
-                  <input
-                    type="text"
-                    value={formViagem.numeroPedido}
-                    onChange={handleViagemInputChange('numeroPedido')}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
-                    placeholder="Digite o número do pedido"
-                  />
-                </div>
-              </div>
-
-              <button
-                onClick={cadastrarViagem}
-                disabled={loading}
-                className="w-full bg-red-600 hover:bg-red-700 text-white font-medium py-3 px-6 rounded-lg transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-              >
-                {loading ? (
-                  <>
-                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
-                    Processando...
-                  </>
-                ) : (
-                  <>
-                    <Plus size={18} />
-                    Cadastrar Viagem
-                  </>
-                )}
-              </button>
-            </div>
-
-            <div className="bg-white rounded-xl shadow-md overflow-hidden">
-              <div className="p-6 border-b border-gray-200">
-                <h2 className="text-2xl font-bold text-gray-800">Lista de Viagens</h2>
-              </div>
-              
-              {viagensOrdenadas.length === 0 ? (
-                <div className="p-12 text-center">
-                  <Truck className="mx-auto text-gray-400 mb-4" size={48} />
-                  <p className="text-gray-600">Nenhuma viagem cadastrada</p>
-                </div>
-              ) : (
-                <div className="divide-y divide-gray-200">
-                  {viagensOrdenadas.map((viagem) => (
-                    <div key={viagem.id} className="p-6 hover:bg-gray-50 transition-colors">
-                      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                        <div className="flex-1">
-                          <div className="flex items-center gap-3 mb-3">
-                            <h3 className="text-lg font-semibold text-gray-800">
-                              {viagem.origem} → {viagem.destino}
-                            </h3>
+                  {viagens.length === 0 ? (
+                    <div className="text-center py-12 text-gray-500">
+                      <Truck size={48} className="mx-auto mb-4 opacity-50" />
+                      <p className="text-lg font-medium">Nenhuma viagem cadastrada</p>
+                      <p className="text-sm">Cadastre a primeira viagem acima</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {viagensOrdenadas.map((viagem) => (
+                        <div
+                          key={viagem.id}
+                          className="bg-gray-50 border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow"
+                        >
+                          <div className="flex items-start justify-between mb-3">
+                            <div className="flex-1">
+                              <h3 className="font-semibold text-gray-800 text-lg mb-1">
+                                {viagem.origem} → {viagem.destino}
+                              </h3>
+                            </div>
                             {getStatusBadgeViagem(viagem.status)}
                           </div>
-                          
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm text-gray-600">
-                            <div className="flex items-center gap-2">
-                              <Bike size={14} />
-                              {viagem.modeloMoto}
+
+                          <div className="grid md:grid-cols-2 gap-3 mb-3 text-sm">
+                            <div className="flex items-center gap-2 text-gray-700">
+                              <Bike size={16} className="text-red-600" />
+                              <span>
+                                <strong>Moto:</strong> {viagem.modeloMoto} - {viagem.cor}
+                              </span>
                             </div>
-                            <div className="flex items-center gap-2">
-                              <Palette size={14} />
-                              {viagem.cor}
+                            <div className="flex items-center gap-2 text-gray-700">
+                              <Hash size={16} className="text-red-600" />
+                              <span>
+                                <strong>Chassi:</strong> {viagem.chassi}
+                              </span>
                             </div>
-                            <div className="flex items-center gap-2">
-                              <Hash size={14} />
-                              Chassi: {viagem.chassi}
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <FileText size={14} />
-                              Pedido: {viagem.numeroPedido}
+                            <div className="flex items-center gap-2 text-gray-700">
+                              <FileText size={16} className="text-red-600" />
+                              <span>
+                                <strong>Pedido:</strong> {viagem.numeroPedido}
+                              </span>
                             </div>
                           </div>
-                        </div>
 
-                        <div className="flex flex-wrap gap-2">
-                          {viagem.status === 'pendente' ? (
+                          <div className="flex gap-2 flex-wrap">
                             <button
-                              onClick={() => alterarStatusViagem(viagem.id, 'concluida')}
-                              className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition-colors text-sm"
-                              title="Marcar como concluída"
+                              onClick={() =>
+                                alterarStatusViagem(
+                                  viagem.id,
+                                  viagem.status === 'pendente' ? 'concluida' : 'pendente'
+                                )
+                              }
+                              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                                viagem.status === 'pendente'
+                                  ? 'bg-green-600 hover:bg-green-700 text-white'
+                                  : 'bg-yellow-600 hover:bg-yellow-700 text-white'
+                              }`}
                             >
-                              <Check size={16} />
-                              Concluir
+                              {viagem.status === 'pendente' ? (
+                                <>
+                                  <Check size={16} />
+                                  Marcar como Concluída
+                                </>
+                              ) : (
+                                <>
+                                  <Clock size={16} />
+                                  Marcar como Pendente
+                                </>
+                              )}
                             </button>
-                          ) : (
+
                             <button
-                              onClick={() => alterarStatusViagem(viagem.id, 'pendente')}
-                              className="flex items-center gap-2 bg-yellow-600 hover:bg-yellow-700 text-white px-4 py-2 rounded-lg transition-colors text-sm"
-                              title="Marcar como pendente"
+                              onClick={() => excluirViagemHandler(viagem.id)}
+                              className="flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
                             >
-                              <Clock size={16} />
-                              Pendente
+                              <X size={16} />
+                              Excluir
                             </button>
-                          )}
-                          
-                          <button
-                            onClick={() => excluirViagemHandler(viagem.id)}
-                            className="flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg transition-colors text-sm"
-                            title="Excluir viagem"
-                          >
-                            <X size={16} />
-                            Excluir
-                          </button>
+                          </div>
                         </div>
-                      </div>
+                      ))}
                     </div>
-                  ))}
+                  )}
                 </div>
-              )}
-            </div>
+              </div>
+            )}
           </div>
-        )}
+        </div>
       </div>
     </div>
   );

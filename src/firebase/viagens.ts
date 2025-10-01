@@ -1,15 +1,16 @@
-// src/firebase/viagens.ts
 import { 
   collection, 
-  addDoc, 
-  getDocs, 
-  updateDoc, 
-  deleteDoc, 
-  doc, 
   query, 
-  orderBy 
+  getDocs, 
+  doc,
+  updateDoc,
+  deleteDoc,
+  orderBy,
+  addDoc
 } from 'firebase/firestore';
 import { db } from './config';
+
+const COLLECTION_NAME = 'viagens';
 
 interface Viagem {
   id?: string;
@@ -27,24 +28,25 @@ interface Viagem {
 
 interface ResultadoOperacao {
   success: boolean;
-  data?: any;
+  data?: Viagem | Viagem[] | { id: string; status?: string }; // ✅ Tipo específico
   error?: string;
 }
 
-const COLECAO_VIAGENS = 'viagens';
-
-// Criar nova viagem
 export const criarViagem = async (
   viagem: Omit<Viagem, 'dataCadastro'>
 ): Promise<ResultadoOperacao> => {
   try {
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { id, ...viagemSemId } = viagem; // ✅ Desabilita warning para 'id'
+
     const viagemComData = {
-      ...viagem,
-      dataCadastro: new Date().toISOString()
+      ...viagemSemId,
+      dataCadastro: new Date().toISOString(),
+      status: 'pendente' as const
     };
 
     const docRef = await addDoc(
-      collection(db, COLECAO_VIAGENS), 
+      collection(db, COLLECTION_NAME), 
       viagemComData
     );
 
@@ -61,21 +63,20 @@ export const criarViagem = async (
   }
 };
 
-// Listar todas as viagens
 export const listarViagens = async (): Promise<ResultadoOperacao> => {
   try {
     const q = query(
-      collection(db, COLECAO_VIAGENS),
+      collection(db, COLLECTION_NAME),
       orderBy('dataCadastro', 'desc')
     );
 
     const querySnapshot = await getDocs(q);
     const viagens: Viagem[] = [];
 
-    querySnapshot.forEach((doc) => {
+    querySnapshot.forEach((docSnap) => {
       viagens.push({
-        id: doc.id,
-        ...doc.data()
+        id: docSnap.id,
+        ...docSnap.data()
       } as Viagem);
     });
 
@@ -93,13 +94,12 @@ export const listarViagens = async (): Promise<ResultadoOperacao> => {
   }
 };
 
-// Atualizar status da viagem
 export const atualizarStatusViagem = async (
   id: string, 
   novoStatus: 'pendente' | 'concluida'
 ): Promise<ResultadoOperacao> => {
   try {
-    const viagemRef = doc(db, COLECAO_VIAGENS, id);
+    const viagemRef = doc(db, COLLECTION_NAME, id);
     
     await updateDoc(viagemRef, {
       status: novoStatus
@@ -118,10 +118,9 @@ export const atualizarStatusViagem = async (
   }
 };
 
-// Excluir viagem
 export const excluirViagem = async (id: string): Promise<ResultadoOperacao> => {
   try {
-    const viagemRef = doc(db, COLECAO_VIAGENS, id);
+    const viagemRef = doc(db, COLLECTION_NAME, id);
     await deleteDoc(viagemRef);
 
     return {

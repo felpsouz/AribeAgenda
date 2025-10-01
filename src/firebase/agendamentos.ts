@@ -29,7 +29,7 @@ interface Agendamento {
 
 interface ResultadoOperacao {
   success: boolean;
-  data?: any;
+  data?: Agendamento | Agendamento[] | { id: string; status?: string }; // ✅ Tipo específico
   error?: string;
 }
 
@@ -37,7 +37,8 @@ export const criarAgendamento = async (
   agendamento: Omit<Agendamento, 'dataCadastro'>
 ): Promise<ResultadoOperacao> => {
   try {
-    const { id, ...agendamentoSemId } = agendamento;
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { id, ...agendamentoSemId } = agendamento; // ✅ Desabilita warning para 'id'
 
     const agendamentoComData = {
       ...agendamentoSemId,
@@ -45,9 +46,7 @@ export const criarAgendamento = async (
       status: 'pendente' as const
     };
 
-    // 🔒 Usando transação para evitar concorrência
     await runTransaction(db, async (transaction) => {
-      // 1 - Buscar se já existe agendamento para mesmo dia+hora
       const q = query(
         collection(db, COLLECTION_NAME),
         where('dataRetirada', '==', agendamentoComData.dataRetirada),
@@ -61,7 +60,6 @@ export const criarAgendamento = async (
         throw new Error('Esse horário já foi agendado. Escolha outro.');
       }
 
-      // 2 - Se não existe, cria dentro da transação
       const newDocRef = doc(collection(db, COLLECTION_NAME));
       transaction.set(newDocRef, agendamentoComData);
     });
@@ -79,7 +77,6 @@ export const criarAgendamento = async (
   }
 };
 
-// Listar todos os agendamentos
 export const listarAgendamentos = async (): Promise<ResultadoOperacao> => {
   try {
     const q = query(
@@ -111,7 +108,6 @@ export const listarAgendamentos = async (): Promise<ResultadoOperacao> => {
   }
 };
 
-// Atualizar status do agendamento
 export const atualizarStatus = async (
   id: string, 
   novoStatus: 'pendente' | 'entregue'
@@ -136,7 +132,6 @@ export const atualizarStatus = async (
   }
 };
 
-// Excluir agendamento
 export const excluirAgendamento = async (id: string): Promise<ResultadoOperacao> => {
   try {
     const agendamentoRef = doc(db, COLLECTION_NAME, id);
