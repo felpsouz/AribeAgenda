@@ -22,6 +22,10 @@ interface LogoutResult {
 export const fazerLogin = async (email: string, senha: string): Promise<AuthResult> => {
   try {
     const userCredential = await signInWithEmailAndPassword(auth, email, senha);
+    
+    // Nota: Os dados do usuário (role) devem ser criados manualmente no Firestore
+    // ou através de um script de admin separado
+    
     return {
       success: true,
       user: userCredential.user
