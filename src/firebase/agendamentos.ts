@@ -15,7 +15,9 @@ interface Agendamento {
   dataCadastro: string;
 }
 
-export const criarAgendamento = async (agendamento: any) => {
+type NovoAgendamento = Omit<Agendamento, 'dataCadastro'>;
+
+export const criarAgendamento = async (agendamento: NovoAgendamento) => {
   try {
     const docRef = await addDoc(collection(db, 'agendamentos'), {
       ...agendamento,

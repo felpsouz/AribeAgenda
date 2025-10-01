@@ -15,7 +15,9 @@ interface Viagem {
   status: 'pendente' | 'concluida';
 }
 
-export const criarViagem = async (viagem: any) => {
+type NovaViagem = Omit<Viagem, 'dataCadastro'>;
+
+export const criarViagem = async (viagem: NovaViagem) => {
   try {
     const docRef = await addDoc(collection(db, 'viagens'), {
       ...viagem,
