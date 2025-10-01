@@ -3,7 +3,7 @@ import { verificarAutenticacao } from '@/firebase/auth';
 import { buscarRoleUsuario, UserRole } from '@/firebase/users';
 import LoginAribeMotos from '@/app/LoginAribeMotos';
 import SistemaAribeMotos from '@/app/SistemaAribeMotos';
-import SistemaAribeMotosUsuario from '@/app/SIstemaAribeMotosUsuario';
+import SistemaAribeMotosUsuario from '@/app/SistemaAribeMotosUsuario';
 import { Bike } from 'lucide-react';
 
 const ProtectedRoute = () => {
