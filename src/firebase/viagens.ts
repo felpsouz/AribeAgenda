@@ -1,19 +1,8 @@
-import { 
-  collection, 
-  query, 
-  getDocs, 
-  doc,
-  updateDoc,
-  deleteDoc,
-  orderBy,
-  addDoc
-} from 'firebase/firestore';
+import { collection, addDoc, getDocs, updateDoc, deleteDoc, doc, query, orderBy } from 'firebase/firestore';
 import { db } from './config';
 
-const COLLECTION_NAME = 'viagens';
-
 interface Viagem {
-  id?: string;
+  id: string;
   origem: string;
   origemOutros?: string;
   destino: string;
@@ -22,116 +11,55 @@ interface Viagem {
   cor: string;
   chassi: string;
   numeroPedido: string;
-  dataCadastro?: string;
+  dataCadastro: string;
   status: 'pendente' | 'concluida';
 }
 
-interface ResultadoOperacao {
-  success: boolean;
-  data?: Viagem | Viagem[] | { id: string; status?: string }; // ✅ Tipo específico
-  error?: string;
-}
-
-export const criarViagem = async (
-  viagem: Omit<Viagem, 'dataCadastro'>
-): Promise<ResultadoOperacao> => {
+export const criarViagem = async (viagem: any) => {
   try {
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const { id, ...viagemSemId } = viagem; // ✅ Desabilita warning para 'id'
-
-    const viagemComData = {
-      ...viagemSemId,
-      dataCadastro: new Date().toISOString(),
-      status: 'pendente' as const
-    };
-
-    const docRef = await addDoc(
-      collection(db, COLLECTION_NAME), 
-      viagemComData
-    );
-
-    return {
-      success: true,
-      data: { id: docRef.id, ...viagemComData }
-    };
+    const docRef = await addDoc(collection(db, 'viagens'), {
+      ...viagem,
+      dataCadastro: new Date().toISOString()
+    });
+    return { success: true, id: docRef.id };
   } catch (error) {
     console.error('Erro ao criar viagem:', error);
-    return {
-      success: false,
-      error: 'Erro ao criar viagem'
-    };
+    return { success: false, error };
   }
 };
 
-export const listarViagens = async (): Promise<ResultadoOperacao> => {
+export const listarViagens = async () => {
   try {
-    const q = query(
-      collection(db, COLLECTION_NAME),
-      orderBy('dataCadastro', 'desc')
-    );
-
+    const q = query(collection(db, 'viagens'), orderBy('dataCadastro', 'desc'));
     const querySnapshot = await getDocs(q);
-    const viagens: Viagem[] = [];
-
-    querySnapshot.forEach((docSnap) => {
-      viagens.push({
-        id: docSnap.id,
-        ...docSnap.data()
-      } as Viagem);
-    });
-
-    return {
-      success: true,
-      data: viagens
-    };
+    const viagens: Viagem[] = querySnapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    } as Viagem));
+    return { success: true, data: viagens };
   } catch (error) {
     console.error('Erro ao listar viagens:', error);
-    return {
-      success: false,
-      error: 'Erro ao listar viagens',
-      data: []
-    };
+    return { success: false, error, data: [] };
   }
 };
 
-export const atualizarStatusViagem = async (
-  id: string, 
-  novoStatus: 'pendente' | 'concluida'
-): Promise<ResultadoOperacao> => {
+export const atualizarStatusViagem = async (id: string, status: string) => {
   try {
-    const viagemRef = doc(db, COLLECTION_NAME, id);
-    
-    await updateDoc(viagemRef, {
-      status: novoStatus
-    });
-
-    return {
-      success: true,
-      data: { id, status: novoStatus }
-    };
+    const docRef = doc(db, 'viagens', id);
+    await updateDoc(docRef, { status });
+    return { success: true };
   } catch (error) {
     console.error('Erro ao atualizar status da viagem:', error);
-    return {
-      success: false,
-      error: 'Erro ao atualizar status da viagem'
-    };
+    return { success: false, error };
   }
 };
 
-export const excluirViagem = async (id: string): Promise<ResultadoOperacao> => {
+export const excluirViagem = async (id: string) => {
   try {
-    const viagemRef = doc(db, COLLECTION_NAME, id);
-    await deleteDoc(viagemRef);
-
-    return {
-      success: true,
-      data: { id }
-    };
+    await deleteDoc(doc(db, 'viagens', id));
+    return { success: true };
   } catch (error) {
     console.error('Erro ao excluir viagem:', error);
-    return {
-      success: false,
-      error: 'Erro ao excluir viagem'
-    };
+    return { success: false, error };
   }
 };
