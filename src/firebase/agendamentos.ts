@@ -1,171 +1,57 @@
-// src/firebase/agendamentos.ts
-
 import { 
   collection, 
-  addDoc, 
+  query, 
+  where, 
   getDocs, 
-  updateDoc, 
-  deleteDoc, 
-  doc,
-  query,
-  orderBy
+  runTransaction, 
+  doc 
 } from 'firebase/firestore';
 import { db } from './config';
 
 const COLLECTION_NAME = 'agendamentos';
 
-interface Agendamento {
-  id: string;
-  nomeCompleto: string;
-  telefone: string;
-  modeloMoto: string;
-  cor: string;
-  chassi: string;
-  numeroPedido: string;
-  dataRetirada: string;
-  horarioRetirada: string;
-  status: 'pendente' | 'entregue';
-  dataCadastro: string;
-}
-
-interface ResultadoOperacao<T = unknown> {
-  success: boolean;
-  data?: T;
-  error?: string;
-}
-
-// Criar novo agendamento
 export const criarAgendamento = async (
   agendamento: Omit<Agendamento, 'dataCadastro'>
 ): Promise<ResultadoOperacao> => {
   try {
-    console.log('🔵 Tentando criar agendamento:', agendamento);
-    
     const { id, ...agendamentoSemId } = agendamento;
-    
+
     const agendamentoComData = {
       ...agendamentoSemId,
-      dataCadastro: new Date().toISOString()
+      dataCadastro: new Date().toISOString(),
+      status: 'pendente' as const
     };
 
-    const docRef = await addDoc(
-      collection(db, COLLECTION_NAME), 
-      agendamentoComData
-    );
-    
-    console.log('✅ Agendamento criado com ID:', docRef.id);
-    
+    // 🔒 Usando transação para evitar concorrência
+    await runTransaction(db, async (transaction) => {
+      // 1 - Buscar se já existe agendamento para mesmo dia+hora
+      const q = query(
+        collection(db, COLLECTION_NAME),
+        where('dataRetirada', '==', agendamentoComData.dataRetirada),
+        where('horarioRetirada', '==', agendamentoComData.horarioRetirada),
+        where('status', '==', 'pendente')
+      );
+
+      const querySnapshot = await getDocs(q);
+
+      if (!querySnapshot.empty) {
+        throw new Error('Esse horário já foi agendado. Escolha outro.');
+      }
+
+      // 2 - Se não existe, cria dentro da transação
+      const newDocRef = doc(collection(db, COLLECTION_NAME));
+      transaction.set(newDocRef, agendamentoComData);
+    });
+
     return {
       success: true,
-      data: { id: docRef.id, ...agendamentoComData }
+      data: agendamentoComData
     };
+
   } catch (error) {
-    console.error('❌ Erro ao criar agendamento:', error);
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Erro ao criar agendamento'
-    };
-  }
-};
-
-// Listar todos os agendamentos
-export const listarAgendamentos = async (): Promise<ResultadoOperacao<Agendamento[]>> => {
-  try {
-    console.log('🔵 Buscando agendamentos...');
-    
-    const q = query(
-      collection(db, COLLECTION_NAME),
-      orderBy('dataCadastro', 'desc')
-    );
-    
-    const querySnapshot = await getDocs(q);
-    const agendamentos: Agendamento[] = [];
-    
-    querySnapshot.forEach((docSnap) => {
-      const data = docSnap.data();
-      console.log('📄 Documento encontrado - ID:', docSnap.id, 'Status:', data.status);
-      
-      agendamentos.push({
-        id: docSnap.id,
-        ...data
-      } as Agendamento);
-    });
-    
-    console.log('✅ Total de agendamentos:', agendamentos.length);
-    
-    return {
-      success: true,
-      data: agendamentos
-    };
-  } catch (error) {
-    console.error('❌ Erro ao listar agendamentos:', error);
-    return {
-      success: false,
-      data: [],
-      error: error instanceof Error ? error.message : 'Erro ao listar agendamentos'
-    };
-  }
-};
-
-// Atualizar status do agendamento
-export const atualizarStatus = async (
-  id: string,
-  novoStatus: 'pendente' | 'entregue'
-): Promise<ResultadoOperacao> => {
-  try {
-    console.log('🔵 Tentando atualizar status - ID:', id, 'Novo status:', novoStatus);
-    
-    if (!id || id === '') {
-      throw new Error('ID do documento está vazio');
-    }
-    
-    const docRef = doc(db, COLLECTION_NAME, id);
-    console.log('📄 Referência do documento criada:', docRef.path);
-    
-    await updateDoc(docRef, {
-      status: novoStatus
-    });
-    
-    console.log('✅ Status atualizado com sucesso!');
-    
-    return {
-      success: true
-    };
-  } catch (error) {
-    console.error('❌ Erro ao atualizar status:', error);
-    console.error('Detalhes - ID:', id, 'Status:', novoStatus);
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : 'Erro ao atualizar status'
-    };
-  }
-};
-
-// Excluir agendamento
-export const excluirAgendamento = async (id: string): Promise<ResultadoOperacao> => {
-  try {
-    console.log('🔵 Tentando excluir agendamento - ID:', id);
-    
-    if (!id || id === '') {
-      throw new Error('ID do documento está vazio');
-    }
-    
-    const docRef = doc(db, COLLECTION_NAME, id);
-    console.log('📄 Referência do documento criada:', docRef.path);
-    
-    await deleteDoc(docRef);
-    
-    console.log('✅ Agendamento excluído com sucesso!');
-    
-    return {
-      success: true
-    };
-  } catch (error) {
-    console.error('❌ Erro ao excluir agendamento:', error);
-    console.error('Detalhes - ID:', id);
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : 'Erro ao excluir agendamento'
     };
   }
 };
