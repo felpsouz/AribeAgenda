@@ -12,18 +12,27 @@ export interface UserData {
 
 // Buscar role do usuário
 export const buscarRoleUsuario = async (uid: string): Promise<UserRole> => {
+  console.log('🔍 Buscando role para UID:', uid);
+  
   try {
     const userDoc = await getDoc(doc(db, 'usuarios', uid));
     
+    console.log('📋 Documento existe?', userDoc.exists());
+    
     if (userDoc.exists()) {
-      const userData = userDoc.data() as UserData;
-      return userData.role;
+      const userData = userDoc.data();
+      console.log('📄 Dados do documento:', userData);
+      console.log('🎯 Role encontrada:', userData.role);
+      console.log('🔢 Tipo da role:', typeof userData.role);
+      
+      return userData.role as UserRole;
     }
     
+    console.log('⚠️ Documento não existe, retornando role padrão: 1');
     // Se não existe, retorna 1 (user) por padrão
     return 1;
   } catch (error) {
-    console.error('Erro ao buscar role do usuário:', error);
+    console.error('❌ Erro ao buscar role do usuário:', error);
     return 1; // Por padrão, retorna user
   }
 };
