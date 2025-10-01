@@ -2,26 +2,32 @@
 import React, { useState, useEffect } from 'react';
 import LoginAribeMotos from './LoginAribeMotos';
 import SistemaAribeMotos from './SistemaAribeMotos';
+import SistemaAribeMotosUsuario from './SistemaAribeMotosUsuario'; // ← IMPORTAR versão usuário
 import { verificarAutenticacao, fazerLogout } from '@/firebase/auth';
 import { LogOut, Bike } from 'lucide-react';
 
 const PageWithAuth: React.FC = () => {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
+  const [userRole, setUserRole] = useState<number | null>(null); // ← ADICIONAR estado do role
   const [loading, setLoading] = useState<boolean>(true);
 
   useEffect(() => {
     // Verificar se usuário está autenticado ao carregar
     const checkAuth = async () => {
-      const user = await verificarAutenticacao();
+      const { user, role } = await verificarAutenticacao(); // ← Agora retorna user E role
       setIsAuthenticated(!!user);
+      setUserRole(role); // ← Salvar o role
       setLoading(false);
     };
     
     checkAuth();
   }, []);
 
-  const handleLoginSuccess = () => {
-    setIsAuthenticated(true);
+  const handleLoginSuccess = async () => {
+    // ← Buscar o role após login bem-sucedido
+    const { user, role } = await verificarAutenticacao();
+    setIsAuthenticated(!!user);
+    setUserRole(role);
   };
 
   const handleLogout = async () => {
@@ -29,6 +35,7 @@ const PageWithAuth: React.FC = () => {
       const resultado = await fazerLogout();
       if (resultado.success) {
         setIsAuthenticated(false);
+        setUserRole(null); // ← Limpar o role
       }
     }
   };
@@ -52,7 +59,7 @@ const PageWithAuth: React.FC = () => {
     return <LoginAribeMotos onLoginSuccess={handleLoginSuccess} />;
   }
 
-  // Se autenticado, mostrar sistema com botão de logout
+  // ← DECIDIR QUAL COMPONENTE MOSTRAR BASEADO NO ROLE
   return (
     <div className="relative">
       {/* Botão de Logout fixo */}
@@ -64,8 +71,27 @@ const PageWithAuth: React.FC = () => {
         Sair
       </button>
       
-      {/* Sistema principal */}
-      <SistemaAribeMotos />
+      {/* Sistema principal - ESCOLHER baseado no role */}
+      {userRole === 0 ? (
+        <SistemaAribeMotos /> // ← Admin
+      ) : userRole === 1 ? (
+        <SistemaAribeMotosUsuario /> // ← Usuário comum
+      ) : (
+        // Caso o role seja null ou inválido
+        <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+          <div className="text-center">
+            <p className="text-gray-700 text-lg mb-4">
+              Usuário sem permissões definidas.
+            </p>
+            <button
+              onClick={handleLogout}
+              className="bg-red-600 text-white px-6 py-3 rounded-lg hover:bg-red-700"
+            >
+              Fazer logout e tentar novamente
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
