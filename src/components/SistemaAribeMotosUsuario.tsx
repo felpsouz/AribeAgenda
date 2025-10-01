@@ -1,7 +1,7 @@
 'use client'
-import React, { useState, useEffect } from 'react';
-import { User, Calendar, Phone, Bike, Palette, Hash, Clock, Check, Plus, MapPin, MessageCircle, FileText } from 'lucide-react';
+import { User, Calendar, Phone, Bike, Palette, Hash, Clock, Check, Plus, MapPin, MessageCircle, FileText, LogOut } from 'lucide-react';
 import { criarAgendamento, listarAgendamentos } from '@/firebase/agendamentos';
+import { auth } from '@/firebase/config';
 
 interface Agendamento {
   id: string;
@@ -378,30 +378,48 @@ const SistemaAribeMotosUsuario: React.FC = () => {
     setDataSelecionada(e.target.value);
     setFormCadastro(prev => ({ ...prev, dataRetirada: e.target.value, horarioRetirada: '' }));
   };
-
+  const handleLogout = async (): Promise<void> => {
+    try {
+      await auth.signOut();
+      mostrarMensagem('Logout realizado com sucesso!');
+    } catch (error) {
+      console.error('Erro ao fazer logout:', error);
+      mostrarMensagem('Erro ao fazer logout. Tente novamente.', 'erro');
+    }
+  };
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="bg-gradient-to-r from-red-600 to-red-700 shadow-lg">
         <div className="max-w-6xl mx-auto px-4 py-6">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center shadow-lg">
-                <Bike className="text-red-600" size={28} />
-              </div>
-              <div>
-                <h1 className="text-3xl font-bold text-white">Aribé Motos</h1>
-                <p className="text-red-100 text-sm">Agendamento de Retirada de Motos</p>
-              </div>
-            </div>
-            <div className="text-right text-white">
-              <div className="flex items-center gap-2 mb-1">
-                <MapPin size={16} />
-                <span className="text-sm">Aracaju, SE</span>
-              </div>
-              <div className="text-xs opacity-90">
-                {agendamentosPendentes} pendentes | {agendamentosEntregues} entregues
-              </div>
-            </div>
+  <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center shadow-lg">
+    <Bike className="text-red-600" size={28} />
+  </div>
+  <div>
+    <h1 className="text-3xl font-bold text-white">Aribé Motos</h1>
+    <p className="text-red-100 text-sm">Agendamento de Retirada de Motos</p>
+  </div>
+</div>
+<div className="flex items-center gap-4">
+  <div className="text-right text-white">
+    <div className="flex items-center gap-2 mb-1">
+      <MapPin size={16} />
+      <span className="text-sm">Aracaju, SE</span>
+    </div>
+    <div className="text-xs opacity-90">
+      {agendamentosPendentes} pendentes | {agendamentosEntregues} entregues
+    </div>
+  </div>
+  <button
+    onClick={handleLogout}
+    className="flex items-center gap-2 bg-white/10 hover:bg-white/20 text-white px-4 py-2 rounded-lg transition-colors backdrop-blur-sm border border-white/20"
+    title="Sair do sistema"
+  >
+    <LogOut size={18} />
+    <span className="hidden sm:inline">Sair</span>
+  </button>
+</div>
           </div>
         </div>
       </div>
