@@ -144,19 +144,19 @@ const SistemaAribeMotos: React.FC = () => {
     carregarViagens();
   }, [carregarAgendamentos, carregarViagens]);
 
-  const salvarAgendamento = async (novoAgendamento: Omit<Agendamento, 'dataCadastro'>) => {
-    try {
-      const resultado = await criarAgendamento(novoAgendamento);
-      if (resultado.success) {
-        await carregarAgendamentos();
-        return true;
-      }
-      return false;
-    } catch (error) {
-      console.error('Erro ao salvar agendamento:', error);
-      return false;
+  const salvarAgendamento = async (novoAgendamento: Omit<Agendamento, 'id' | 'dataCadastro'>) => {
+  try {
+    const resultado = await criarAgendamento(novoAgendamento);
+    if (resultado.success) {
+      await carregarAgendamentos();
+      return true;
     }
-  };
+    return false;
+  } catch (error) {
+    console.error('Erro ao salvar agendamento:', error);
+    return false;
+  }
+};
 
   const atualizarStatusAgendamento = async (id: string, novoStatus: StatusType) => {
     try {
@@ -186,19 +186,19 @@ const SistemaAribeMotos: React.FC = () => {
     }
   };
 
-  const salvarViagem = async (novaViagem: Omit<Viagem, 'dataCadastro'>) => {
-    try {
-      const resultado = await criarViagem(novaViagem);
-      if (resultado.success) {
-        await carregarViagens();
-        return true;
-      }
-      return false;
-    } catch (error) {
-      console.error('Erro ao salvar viagem:', error);
-      return false;
+  const salvarViagem = async (novaViagem: Omit<Viagem, 'id' | 'dataCadastro'>) => {
+  try {
+    const resultado = await criarViagem(novaViagem);
+    if (resultado.success) {
+      await carregarViagens();
+      return true;
     }
-  };
+    return false;
+  } catch (error) {
+    console.error('Erro ao salvar viagem:', error);
+    return false;
+  }
+};
 
   const atualizarStatusViagem = async (id: string, novoStatus: StatusViagemType) => {
     try {
