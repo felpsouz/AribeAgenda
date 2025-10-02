@@ -1,28 +1,14 @@
 import { collection, addDoc, getDocs, updateDoc, deleteDoc, doc, query, orderBy } from 'firebase/firestore';
 import { db } from './config';
 
-interface Viagem {
-  id: string;
-  origem: string;
-  origemOutros?: string;
-  destino: string;
-  destinoOutros?: string;
-  modeloMoto: string;
-  cor: string;
-  chassi: string;
-  numeroPedido: string;
-  dataCadastro: string;
-  status: 'pendente' | 'concluida';
-}
-
-type NovaViagem = Omit<Viagem, 'dataCadastro'>;
-
-export const criarViagem = async (viagem: NovaViagem) => {
+// Remova 'id' do tipo de entrada
+export const criarViagem = async (viagem: Omit<any, 'id' | 'dataCadastro'>) => {
   try {
     const docRef = await addDoc(collection(db, 'viagens'), {
       ...viagem,
       dataCadastro: new Date().toISOString()
     });
+    
     return { success: true, id: docRef.id };
   } catch (error) {
     console.error('Erro ao criar viagem:', error);
@@ -33,22 +19,28 @@ export const criarViagem = async (viagem: NovaViagem) => {
 export const listarViagens = async () => {
   try {
     const q = query(collection(db, 'viagens'), orderBy('dataCadastro', 'desc'));
-    const querySnapshot = await getDocs(q);
-    const viagens: Viagem[] = querySnapshot.docs.map(doc => ({
-      id: doc.id,
+    const snapshot = await getDocs(q);
+    
+    const viagens = snapshot.docs.map(doc => ({
+      id: doc.id, // ID gerado pelo Firebase
       ...doc.data()
-    } as Viagem));
+    }));
+    
     return { success: true, data: viagens };
   } catch (error) {
     console.error('Erro ao listar viagens:', error);
-    return { success: false, error, data: [] };
+    return { success: false, error };
   }
 };
 
-export const atualizarStatusViagem = async (id: string, status: string) => {
+export const atualizarStatusViagem = async (id: string, novoStatus: string) => {
   try {
-    const docRef = doc(db, 'viagens', id);
-    await updateDoc(docRef, { status });
+    const viagemRef = doc(db, 'viagens', id);
+    await updateDoc(viagemRef, {
+      status: novoStatus,
+      updatedAt: new Date().toISOString()
+    });
+    
     return { success: true };
   } catch (error) {
     console.error('Erro ao atualizar status da viagem:', error);
