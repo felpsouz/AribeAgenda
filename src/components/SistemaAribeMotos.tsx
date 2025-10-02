@@ -635,13 +635,6 @@ const SistemaAribeMotos: React.FC = () => {
     return dataA.getTime() - dataB.getTime();
   });
 
-  const viagensOrdenadas = [...viagens].sort((a, b) => {
-    if (a.status !== b.status) {
-      return a.status === 'pendente' ? -1 : 1;
-    }
-    return new Date(b.dataCadastro).getTime() - new Date(a.dataCadastro).getTime();
-  });
-
   const agendamentosPendentes = agendamentos.filter(a => a.status === 'pendente').length;
   const agendamentosEntregues = agendamentos.filter(a => a.status === 'entregue').length;
   const viagensPendentes = viagens.filter(v => v.status === 'pendente').length;
