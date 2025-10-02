@@ -99,7 +99,7 @@ const SistemaAribeMotosUsuario: React.FC = () => {
 
   useEffect(() => {
     carregarAgendamentos();
-  }, []);
+  }, [carregarAgendamentos]);
 
   const verificarHorarioValido = (data: string, horario: string): boolean => {
     const agora = new Date();
@@ -160,7 +160,7 @@ const SistemaAribeMotosUsuario: React.FC = () => {
     } else {
       setHorariosDisponiveis([]);
     }
-  }, [dataSelecionada, agendamentos, formCadastro.horarioRetirada]);
+  }, [dataSelecionada, formCadastro.horarioRetirada, gerarHorariosDisponiveis, obterHorariosOcupados]);
 
   const mostrarMensagem = (texto: string, tipo: 'sucesso' | 'erro' = 'sucesso'): void => {
     setMensagem({ texto, tipo });
