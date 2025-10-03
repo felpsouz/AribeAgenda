@@ -193,7 +193,7 @@ const LoginAribeMotos: React.FC<LoginProps> = ({ onLoginSuccess }) => {
         {/* Rodapé */}
         <div className="text-center mt-6">
           <p className="text-white text-sm opacity-90">
-            © 2024 Aribé Motos - Todos os direitos reservados
+            © Aribé Motos - Todos os direitos reservados
           </p>
         </div>
       </div>
