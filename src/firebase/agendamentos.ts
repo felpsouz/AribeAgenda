@@ -1,6 +1,5 @@
 import { 
   collection, 
-  addDoc, 
   getDocs, 
   updateDoc, 
   deleteDoc, 
@@ -40,24 +39,21 @@ export const criarAgendamento = async (
   try {
     const agendamentosRef = collection(db, 'agendamentos');
     
+    // Cria um ID único para o documento de controle de horário
+    const horarioId = `${agendamento.dataRetirada}_${agendamento.horarioRetirada}`;
+    const horarioDocRef = doc(db, 'horarios_ocupados', horarioId);
+    
     // Usa transação para garantir atomicidade
     const resultado = await runTransaction(db, async (transaction) => {
-      // Verifica se já existe agendamento para o mesmo horário
-      const q = query(
-        agendamentosRef,
-        where('dataRetirada', '==', agendamento.dataRetirada),
-        where('horarioRetirada', '==', agendamento.horarioRetirada)
-      );
+      // Verifica se o horário já está ocupado usando um documento de controle
+      const horarioDoc = await transaction.get(horarioDocRef);
       
-      // IMPORTANTE: Usar transaction.get() dentro da transação
-      const snapshot = await transaction.get(q);
-      
-      // Se já existe um agendamento para esse horário, lança erro específico
-      if (!snapshot.empty) {
+      // Se já existe um documento de controle, o horário está ocupado
+      if (horarioDoc.exists()) {
         throw new Error('HORARIO_OCUPADO');
       }
       
-      // Cria referência para o novo documento
+      // Cria referência para o novo documento de agendamento
       const novoDocRef = doc(agendamentosRef);
       
       // Cria o novo agendamento com timestamp
@@ -67,8 +63,16 @@ export const criarAgendamento = async (
         timestamp: Timestamp.now()
       };
       
-      // Adiciona o documento usando transaction.set()
+      // Adiciona o documento de agendamento usando transaction.set()
       transaction.set(novoDocRef, novoAgendamento);
+      
+      // Cria documento de controle de horário para evitar duplicatas
+      transaction.set(horarioDocRef, {
+        agendamentoId: novoDocRef.id,
+        dataRetirada: agendamento.dataRetirada,
+        horarioRetirada: agendamento.horarioRetirada,
+        timestamp: Timestamp.now()
+      });
       
       return novoDocRef;
     });
@@ -140,7 +144,22 @@ export const atualizarStatus = async (
 
 export const excluirAgendamento = async (id: string): Promise<FirebaseResponse<null>> => {
   try {
-    await deleteDoc(doc(db, 'agendamentos', id));
+    const agendamentoDoc = await getDocs(query(collection(db, 'agendamentos'), where('__name__', '==', id)));
+    
+    if (!agendamentoDoc.empty) {
+      const agendamento = agendamentoDoc.docs[0].data() as Agendamento;
+      const horarioId = `${agendamento.dataRetirada}_${agendamento.horarioRetirada}`;
+      const horarioDocRef = doc(db, 'horarios_ocupados', horarioId);
+      
+      // Remove tanto o agendamento quanto o documento de controle de horário
+      await runTransaction(db, async (transaction) => {
+        transaction.delete(doc(db, 'agendamentos', id));
+        transaction.delete(horarioDocRef);
+      });
+    } else {
+      await deleteDoc(doc(db, 'agendamentos', id));
+    }
+    
     return { success: true, data: null };
   } catch (error) {
     console.error('Erro ao excluir agendamento:', error);
