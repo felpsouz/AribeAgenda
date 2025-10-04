@@ -90,13 +90,39 @@ const SistemaAribeMotosUsuario: React.FC = () => {
   const salvarAgendamento = async (novoAgendamento: Omit<Agendamento, 'id' | 'dataCadastro'>) => {
     try {
       const resultado = await criarAgendamento(novoAgendamento);
+      
       if (resultado.success) {
         await carregarAgendamentos();
         return true;
       }
+      
+      // Tratamento específico para horário ocupado
+      if (resultado.error === 'HORARIO_OCUPADO') {
+        mostrarMensagem('Este horário acabou de ser reservado por outro cliente. Por favor, selecione outro horário.', 'erro');
+        
+        // Atualiza os agendamentos para refletir a mudança
+        await carregarAgendamentos();
+        
+        // Força atualização dos horários disponíveis
+        if (dataSelecionada) {
+          const todosHorarios = gerarHorariosDisponiveis(dataSelecionada);
+          const horariosOcupados = obterHorariosOcupados(dataSelecionada);
+          const horariosLivres = todosHorarios.filter(horario => !horariosOcupados.includes(horario));
+          setHorariosDisponiveis(horariosLivres);
+          
+          // Limpa o horário selecionado se ele não estiver mais disponível
+          if (formCadastro.horarioRetirada && !horariosLivres.includes(formCadastro.horarioRetirada)) {
+            setFormCadastro(prev => ({ ...prev, horarioRetirada: '' }));
+          }
+        }
+      } else {
+        mostrarMensagem(resultado.error || 'Erro ao criar agendamento. Tente novamente.', 'erro');
+      }
+      
       return false;
     } catch (error) {
       console.error('Erro ao salvar agendamento:', error);
+      mostrarMensagem('Erro ao criar agendamento. Tente novamente.', 'erro');
       return false;
     }
   };

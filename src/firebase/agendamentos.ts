@@ -1,4 +1,16 @@
-import { collection, addDoc, getDocs, updateDoc, deleteDoc, doc, query, orderBy } from 'firebase/firestore';
+import { 
+  collection, 
+  addDoc, 
+  getDocs, 
+  updateDoc, 
+  deleteDoc, 
+  doc, 
+  query, 
+  orderBy,
+  where,
+  runTransaction,
+  Timestamp
+} from 'firebase/firestore';
 import { db } from './config';
 
 export interface Agendamento {
@@ -26,14 +38,51 @@ export const criarAgendamento = async (
   agendamento: Omit<Agendamento, 'id' | 'dataCadastro'>
 ): Promise<FirebaseResponse<null>> => {
   try {
-    const docRef = await addDoc(collection(db, 'agendamentos'), {
-      ...agendamento,
-      dataCadastro: new Date().toISOString(),
+    const agendamentosRef = collection(db, 'agendamentos');
+    
+    // Usa transação para garantir atomicidade
+    const resultado = await runTransaction(db, async (transaction) => {
+      // Verifica se já existe agendamento para o mesmo horário
+      const q = query(
+        agendamentosRef,
+        where('dataRetirada', '==', agendamento.dataRetirada),
+        where('horarioRetirada', '==', agendamento.horarioRetirada)
+      );
+      
+      const snapshot = await getDocs(q);
+      
+      // Se já existe um agendamento para esse horário, lança erro específico
+      if (!snapshot.empty) {
+        throw new Error('HORARIO_OCUPADO');
+      }
+      
+      // Cria o novo agendamento com timestamp
+      const novoAgendamento = {
+        ...agendamento,
+        dataCadastro: new Date().toISOString(),
+        timestamp: Timestamp.now()
+      };
+      
+      // Adiciona o documento
+      const docRef = await addDoc(agendamentosRef, novoAgendamento);
+      
+      return docRef;
     });
 
-    return { success: true, data: null, id: docRef.id };
+    return { success: true, data: null, id: resultado.id };
+    
   } catch (error) {
     console.error('Erro ao criar agendamento:', error);
+    
+    // Tratamento específico para horário ocupado
+    if (error instanceof Error && error.message === 'HORARIO_OCUPADO') {
+      return {
+        success: false,
+        data: null,
+        error: 'HORARIO_OCUPADO',
+      };
+    }
+    
     return {
       success: false,
       data: null,
@@ -57,7 +106,7 @@ export const listarAgendamentos = async (): Promise<FirebaseResponse<Agendamento
     console.error('Erro ao listar agendamentos:', error);
     return {
       success: false,
-      data: [], // <-- nunca {} aqui
+      data: [],
       error: error instanceof Error ? error.message : 'Erro desconhecido',
     };
   }
