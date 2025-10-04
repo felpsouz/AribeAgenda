@@ -1,9 +1,8 @@
 'use client'
+import React, { useState, useEffect, useCallback } from 'react';
 import { User, Calendar, Phone, Bike, Palette, Hash, Clock, Check, Plus, MapPin, MessageCircle, FileText, LogOut } from 'lucide-react';
 import { criarAgendamento, listarAgendamentos } from '@/firebase/agendamentos';
 import { auth } from '@/firebase/config';
-import React, { useState, useEffect } from "react";
-
 
 interface Agendamento {
   id: string;
@@ -66,12 +65,17 @@ const SistemaAribeMotosUsuario: React.FC = () => {
     horarioRetirada: ''
   });
 
-  const carregarAgendamentos = async () => {
+  const mostrarMensagem = useCallback((texto: string, tipo: 'sucesso' | 'erro' = 'sucesso'): void => {
+    setMensagem({ texto, tipo });
+    setTimeout(() => setMensagem(null), 4000);
+  }, []);
+
+  const carregarAgendamentos = useCallback(async () => {
     setLoadingData(true);
     try {
       const resultado = await listarAgendamentos();
       if (resultado.success && resultado.data) {
-        setAgendamentos(resultado.data);
+        setAgendamentos(resultado.data as Agendamento[]);
       } else {
         mostrarMensagem('Erro ao carregar agendamentos', 'erro');
       }
@@ -81,9 +85,9 @@ const SistemaAribeMotosUsuario: React.FC = () => {
     } finally {
       setLoadingData(false);
     }
-  };
+  }, [mostrarMensagem]);
 
-  const salvarAgendamento = async (novoAgendamento: Omit<Agendamento, 'dataCadastro'>) => {
+  const salvarAgendamento = async (novoAgendamento: Omit<Agendamento, 'id' | 'dataCadastro'>) => {
     try {
       const resultado = await criarAgendamento(novoAgendamento);
       if (resultado.success) {
@@ -110,7 +114,7 @@ const SistemaAribeMotosUsuario: React.FC = () => {
     return diferencaHoras >= 6;
   };
 
-  const gerarHorariosDisponiveis = (data: string): string[] => {
+  const gerarHorariosDisponiveis = useCallback((data: string): string[] => {
     const [ano, mes, dia] = data.split('-').map(Number);
     const dataObj = new Date(ano, mes - 1, dia);
     const diaSemana = dataObj.getDay();
@@ -139,13 +143,13 @@ const SistemaAribeMotosUsuario: React.FC = () => {
     }
 
     return horarios.filter(horario => verificarHorarioValido(data, horario));
-  };
+  }, []);
 
-  const obterHorariosOcupados = (data: string): string[] => {
+  const obterHorariosOcupados = useCallback((data: string): string[] => {
     return agendamentos
       .filter(agendamento => agendamento.dataRetirada === data)
       .map(agendamento => agendamento.horarioRetirada);
-  };
+  }, [agendamentos]);
 
   useEffect(() => {
     if (dataSelecionada) {
@@ -161,11 +165,6 @@ const SistemaAribeMotosUsuario: React.FC = () => {
       setHorariosDisponiveis([]);
     }
   }, [dataSelecionada, formCadastro.horarioRetirada, gerarHorariosDisponiveis, obterHorariosOcupados]);
-
-  const mostrarMensagem = (texto: string, tipo: 'sucesso' | 'erro' = 'sucesso'): void => {
-    setMensagem({ texto, tipo });
-    setTimeout(() => setMensagem(null), 4000);
-  };
 
   const validarFormulario = (): boolean => {
     const { nome, sobrenome, telefone, modeloMoto, cor, chassi, numeroPedido, dataRetirada, horarioRetirada } = formCadastro;
@@ -237,8 +236,7 @@ const SistemaAribeMotosUsuario: React.FC = () => {
     
     setLoading(true);
 
-    const novoAgendamento: Omit<Agendamento, 'dataCadastro'> = {
-      id: Date.now().toString(),
+    const novoAgendamento = {
       nomeCompleto: `${formCadastro.nome} ${formCadastro.sobrenome}`,
       telefone: formCadastro.telefone,
       modeloMoto: formCadastro.modeloMoto,
@@ -247,7 +245,7 @@ const SistemaAribeMotosUsuario: React.FC = () => {
       numeroPedido: formCadastro.numeroPedido,
       dataRetirada: formCadastro.dataRetirada,
       horarioRetirada: formCadastro.horarioRetirada,
-      status: 'pendente'
+      status: 'pendente' as const
     };
 
     const sucesso = await salvarAgendamento(novoAgendamento);
@@ -337,6 +335,16 @@ const SistemaAribeMotosUsuario: React.FC = () => {
     );
   };
 
+  const handleLogout = async (): Promise<void> => {
+    try {
+      await auth.signOut();
+      mostrarMensagem('Logout realizado com sucesso!');
+    } catch (error) {
+      console.error('Erro ao fazer logout:', error);
+      mostrarMensagem('Erro ao fazer logout. Tente novamente.', 'erro');
+    }
+  };
+
   const agendamentosOrdenados = [...agendamentos].sort((a, b) => {
     if (a.status !== b.status) {
       return a.status === 'pendente' ? -1 : 1;
@@ -380,48 +388,40 @@ const SistemaAribeMotosUsuario: React.FC = () => {
     setDataSelecionada(e.target.value);
     setFormCadastro(prev => ({ ...prev, dataRetirada: e.target.value, horarioRetirada: '' }));
   };
-  const handleLogout = async (): Promise<void> => {
-    try {
-      await auth.signOut();
-      mostrarMensagem('Logout realizado com sucesso!');
-    } catch (error) {
-      console.error('Erro ao fazer logout:', error);
-      mostrarMensagem('Erro ao fazer logout. Tente novamente.', 'erro');
-    }
-  };
+
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="bg-gradient-to-r from-red-600 to-red-700 shadow-lg">
         <div className="max-w-6xl mx-auto px-4 py-6">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-  <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center shadow-lg">
-    <Bike className="text-red-600" size={28} />
-  </div>
-  <div>
-    <h1 className="text-3xl font-bold text-white">Aribé Motos</h1>
-    <p className="text-red-100 text-sm">Agendamento de Retirada de Motos</p>
-  </div>
-</div>
-<div className="flex items-center gap-4">
-  <div className="text-right text-white">
-    <div className="flex items-center gap-2 mb-1">
-      <MapPin size={16} />
-      <span className="text-sm">Aracaju, SE</span>
-    </div>
-    <div className="text-xs opacity-90">
-      {agendamentosPendentes} pendentes | {agendamentosEntregues} entregues
-    </div>
-  </div>
-  <button
-    onClick={handleLogout}
-    className="flex items-center gap-2 bg-white/10 hover:bg-white/20 text-white px-4 py-2 rounded-lg transition-colors backdrop-blur-sm border border-white/20"
-    title="Sair do sistema"
-  >
-    <LogOut size={18} />
-    <span className="hidden sm:inline">Sair</span>
-  </button>
-</div>
+              <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center shadow-lg">
+                <Bike className="text-red-600" size={28} />
+              </div>
+              <div>
+                <h1 className="text-3xl font-bold text-white">Aribé Motos</h1>
+                <p className="text-red-100 text-sm">Agendamento de Retirada de Motos</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-4">
+              <div className="text-right text-white">
+                <div className="flex items-center gap-2 mb-1">
+                  <MapPin size={16} />
+                  <span className="text-sm">Aracaju, SE</span>
+                </div>
+                <div className="text-xs opacity-90">
+                  {agendamentosPendentes} pendentes | {agendamentosEntregues} entregues
+                </div>
+              </div>
+              <button
+                onClick={handleLogout}
+                className="flex items-center gap-2 bg-white/10 hover:bg-white/20 text-white px-4 py-2 rounded-lg transition-colors backdrop-blur-sm border border-white/20"
+                title="Sair do sistema"
+              >
+                <LogOut size={18} />
+                <span className="hidden sm:inline">Sair</span>
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -614,8 +614,7 @@ const SistemaAribeMotosUsuario: React.FC = () => {
                   />
                   {dataSelecionada && (
                     <p className="text-sm text-gray-600 mt-1">
-                      {obterNomeDiaSemana(dataSelecionada)}
-                    </p>
+                      {obterNomeDiaSemana(dataSelecionada)}</p>
                   )}
                 </div>
                 
@@ -628,12 +627,14 @@ const SistemaAribeMotosUsuario: React.FC = () => {
                     value={formCadastro.horarioRetirada}
                     onChange={handleInputChange('horarioRetirada')}
                     className="w-full p-4 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500 transition-colors"
-                    disabled={!dataSelecionada}
                     required
+                    disabled={!dataSelecionada}
                   >
-                    <option value="">Selecione um horário</option>
-                    {horariosDisponiveis.map((horario: string) => (
-                      <option key={horario} value={horario}>{horario}</option>
+                    <option value="">Selecione o horário</option>
+                    {horariosDisponiveis.map((horario) => (
+                      <option key={horario} value={horario}>
+                        {horario}
+                      </option>
                     ))}
                   </select>
                   {dataSelecionada && horariosDisponiveis.length === 0 && (
@@ -643,23 +644,23 @@ const SistemaAribeMotosUsuario: React.FC = () => {
                   )}
                 </div>
               </div>
-
-              <div className="mt-8 flex gap-4">
+              
+              <div className="mt-8 flex justify-end">
                 <button
                   onClick={cadastrarCliente}
-                  disabled={loading || !dataSelecionada || horariosDisponiveis.length === 0}
-                  className="flex-1 bg-red-600 text-white py-4 px-6 rounded-lg font-semibold hover:bg-red-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-all duration-200 transform hover:scale-105 active:scale-95 shadow-lg"
+                  disabled={loading}
+                  className="bg-red-600 hover:bg-red-700 text-white px-8 py-3 rounded-lg font-semibold shadow-lg hover:shadow-xl transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                 >
                   {loading ? (
-                    <span className="flex items-center justify-center gap-2">
-                      <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
-                      Agendando...
-                    </span>
+                    <>
+                      <Clock className="animate-spin" size={20} />
+                      Processando...
+                    </>
                   ) : (
-                    <span className="flex items-center justify-center gap-2">
+                    <>
                       <Plus size={20} />
-                      Confirmar Agendamento
-                    </span>
+                      Criar Agendamento
+                    </>
                   )}
                 </button>
               </div>
@@ -668,78 +669,83 @@ const SistemaAribeMotosUsuario: React.FC = () => {
         )}
 
         {activeTab === 'agendamentos' && (
-          <div className="bg-white rounded-xl shadow-lg p-8">
-            <div className="flex items-center justify-between mb-6">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-red-100 rounded-lg flex items-center justify-center">
-                  <Calendar className="text-red-600" size={20} />
-                </div>
-                <h2 className="text-2xl font-bold text-gray-800">Meus Agendamentos</h2>
-              </div>
-              <div className="text-sm text-gray-600">
-                Total: {agendamentos.length} agendamento(s)
+          <div className="space-y-4">
+            {loadingData ? (
+              <div className="bg-white rounded-xl shadow-lg p-8 flex items-center justify-center">
+              <div className="text-center">
+                <Clock className="animate-spin text-red-600 mx-auto mb-4" size={48} />
+                <p className="text-gray-600">Carregando agendamentos...</p>
               </div>
             </div>
-
-            {loadingData ? (
-              <div className="flex justify-center items-center py-12">
-                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-red-600"></div>
-              </div>
             ) : agendamentosOrdenados.length === 0 ? (
-              <div className="text-center py-12">
-                <Calendar size={48} className="mx-auto text-gray-300 mb-4" />
-                <p className="text-gray-500 text-lg">Nenhum agendamento encontrado</p>
+              <div className="bg-white rounded-xl shadow-lg p-12 text-center">
+                <Calendar className="text-gray-300 mx-auto mb-4" size={64} />
+                <h3 className="text-xl font-semibold text-gray-700 mb-2">
+                  Nenhum agendamento encontrado
+                </h3>
+                <p className="text-gray-500 mb-6">
+                  Você ainda não possui agendamentos cadastrados.
+                </p>
                 <button
                   onClick={() => setActiveTab('cadastro')}
-                  className="mt-4 text-red-600 hover:text-red-700 font-medium"
+                  className="bg-red-600 hover:bg-red-700 text-white px-6 py-3 rounded-lg font-semibold inline-flex items-center gap-2 transition-colors"
                 >
-                  Criar primeiro agendamento
+                  <Plus size={20} />
+                  Criar Primeiro Agendamento
                 </button>
               </div>
             ) : (
-              <div className="grid gap-4">
-                {agendamentosOrdenados.map((agendamento) => (
-                  <div
-                    key={agendamento.id}
-                    className="border border-gray-200 rounded-lg p-6 hover:shadow-md transition-shadow"
-                  >
-                    <div className="flex items-start justify-between mb-4">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-3 mb-2">
-                          <h3 className="text-lg font-bold text-gray-800">
-                            {agendamento.nomeCompleto}
-                          </h3>
-                          {getStatusBadge(agendamento.status)}
+              agendamentosOrdenados.map((agendamento) => (
+                <div 
+                  key={agendamento.id} 
+                  className="bg-white rounded-xl shadow-lg p-6 hover:shadow-xl transition-shadow duration-200"
+                >
+                  <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-3 mb-3">
+                        <User className="text-red-600" size={20} />
+                        <h3 className="text-xl font-bold text-gray-800">
+                          {agendamento.nomeCompleto}
+                        </h3>
+                        {getStatusBadge(agendamento.status)}
+                      </div>
+                      
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 text-sm">
+                        <div className="flex items-center gap-2 text-gray-600">
+                          <Phone size={16} className="text-red-500" />
+                          <span>{formatarTelefone(agendamento.telefone)}</span>
                         </div>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm text-gray-600">
-                          <div className="flex items-center gap-2">
-                            <Phone size={16} className="text-gray-400" />
-                            <span>{formatarTelefone(agendamento.telefone)}</span>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <Bike size={16} className="text-gray-400" />
-                            <span>{agendamento.modeloMoto}</span>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <Palette size={16} className="text-gray-400" />
-                            <span>{agendamento.cor}</span>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <Hash size={16} className="text-gray-400" />
-                            <span>{agendamento.chassi}</span>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <FileText size={16} className="text-gray-400" />
-                            <span>Pedido: {agendamento.numeroPedido}</span>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <Calendar size={16} className="text-gray-400" />
-                            <span>
-                              {formatarData(agendamento.dataRetirada)} às {agendamento.horarioRetirada}
-                            </span>
-                          </div>
+                        
+                        <div className="flex items-center gap-2 text-gray-600">
+                          <Bike size={16} className="text-red-500" />
+                          <span>{agendamento.modeloMoto}</span>
+                        </div>
+                        
+                        <div className="flex items-center gap-2 text-gray-600">
+                          <Palette size={16} className="text-red-500" />
+                          <span>{agendamento.cor}</span>
+                        </div>
+                        
+                        <div className="flex items-center gap-2 text-gray-600">
+                          <Hash size={16} className="text-red-500" />
+                          <span className="truncate">{agendamento.chassi}</span>
+                        </div>
+                        
+                        <div className="flex items-center gap-2 text-gray-600">
+                          <FileText size={16} className="text-red-500" />
+                          <span>{agendamento.numeroPedido}</span>
+                        </div>
+                        
+                        <div className="flex items-center gap-2 text-gray-600">
+                          <Calendar size={16} className="text-red-500" />
+                          <span>
+                            {formatarData(agendamento.dataRetirada)} às {agendamento.horarioRetirada}
+                          </span>
                         </div>
                       </div>
+                    </div>
+                    
+                    <div className="flex flex-col sm:flex-row gap-3 lg:flex-col">
                       <button
                         onClick={() => abrirWhatsApp(
                           agendamento.telefone,
@@ -747,15 +753,16 @@ const SistemaAribeMotosUsuario: React.FC = () => {
                           agendamento.modeloMoto,
                           agendamento.numeroPedido
                         )}
-                        className="ml-4 bg-green-500 hover:bg-green-600 text-white p-3 rounded-lg transition-colors shadow-sm"
-                        title="Abrir WhatsApp"
+                        className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg font-medium shadow-md hover:shadow-lg transition-all duration-200 flex items-center justify-center gap-2"
+                        title="Enviar mensagem no WhatsApp"
                       >
-                        <MessageCircle size={20} />
+                        <MessageCircle size={18} />
+                        <span className="hidden sm:inline">WhatsApp</span>
                       </button>
                     </div>
                   </div>
-                ))}
-              </div>
+                </div>
+              ))
             )}
           </div>
         )}
