@@ -264,35 +264,37 @@ const SistemaAribeMotos: React.FC = () => {
   };
 
   const gerarHorariosDisponiveis = useCallback((data: string): string[] => {
-    const [ano, mes, dia] = data.split('-').map(Number);
-    const dataObj = new Date(ano, mes - 1, dia);
-    const diaSemana = dataObj.getDay();
-    const horarios: string[] = [];
+  const [ano, mes, dia] = data.split('-').map(Number);
+  const dataObj = new Date(ano, mes - 1, dia);
+  const diaSemana = dataObj.getDay();
+  const horarios: string[] = [];
 
-    if (diaSemana >= 1 && diaSemana <= 5) {
-      for (let hora = 8; hora <= 12; hora++) {
-        horarios.push(`${hora.toString().padStart(2, '0')}:00`);
-        if (hora < 12) {
-          horarios.push(`${hora.toString().padStart(2, '0')}:30`);
-        }
-      }
-      horarios.push('13:00');
-      
-      for (let hora = 15; hora <= 16; hora++) {
-        horarios.push(`${hora.toString().padStart(2, '0')}:00`);
-        horarios.push(`${hora.toString().padStart(2, '0')}:30`);
-      }
-      horarios.push('17:00');
-    } else if (diaSemana === 6) {
-      for (let hora = 8; hora <= 10; hora++) {
-        horarios.push(`${hora.toString().padStart(2, '0')}:00`);
-        horarios.push(`${hora.toString().padStart(2, '0')}:30`);
-      }
-      horarios.push('11:00');
+  if (diaSemana >= 1 && diaSemana <= 5) {
+    // Período da manhã: 8:30 às 12:00
+    horarios.push('08:30');
+    for (let hora = 9; hora <= 11; hora++) {
+      horarios.push(`${hora.toString().padStart(2, '0')}:00`);
+      horarios.push(`${hora.toString().padStart(2, '0')}:30`);
     }
+    horarios.push('12:00');
+    
+    // Período da tarde: 15:30 às 17:00
+    horarios.push('15:30');
+    horarios.push('16:00');
+    horarios.push('16:30');
+    horarios.push('17:00');
+  } else if (diaSemana === 6) {
+    // Sábado: 8:30 às 11:00
+    horarios.push('08:30');
+    for (let hora = 9; hora <= 10; hora++) {
+      horarios.push(`${hora.toString().padStart(2, '0')}:00`);
+      horarios.push(`${hora.toString().padStart(2, '0')}:30`);
+    }
+    horarios.push('11:00');
+  }
 
-    return horarios.filter(horario => verificarHorarioValido(data, horario));
-  }, []);
+  return horarios.filter(horario => verificarHorarioValido(data, horario));
+}, []);
 
   const obterHorariosOcupados = useCallback((data: string): string[] => {
     return agendamentos
