@@ -49,12 +49,16 @@ export const criarAgendamento = async (
         where('horarioRetirada', '==', agendamento.horarioRetirada)
       );
       
-      const snapshot = await getDocs(q);
+      // IMPORTANTE: Usar transaction.get() dentro da transação
+      const snapshot = await transaction.get(q);
       
       // Se já existe um agendamento para esse horário, lança erro específico
       if (!snapshot.empty) {
         throw new Error('HORARIO_OCUPADO');
       }
+      
+      // Cria referência para o novo documento
+      const novoDocRef = doc(agendamentosRef);
       
       // Cria o novo agendamento com timestamp
       const novoAgendamento = {
@@ -63,10 +67,10 @@ export const criarAgendamento = async (
         timestamp: Timestamp.now()
       };
       
-      // Adiciona o documento
-      const docRef = await addDoc(agendamentosRef, novoAgendamento);
+      // Adiciona o documento usando transaction.set()
+      transaction.set(novoDocRef, novoAgendamento);
       
-      return docRef;
+      return novoDocRef;
     });
 
     return { success: true, data: null, id: resultado.id };
