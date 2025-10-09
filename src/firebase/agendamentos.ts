@@ -24,6 +24,8 @@ export interface Agendamento {
   horarioRetirada: string;
   status: 'pendente' | 'entregue';
   dataCadastro: string;
+  excluido?: boolean; // Campo para soft delete
+  dataExclusao?: string; // Data em que foi excluído
 }
 
 interface FirebaseResponse<T> {
@@ -60,7 +62,8 @@ export const criarAgendamento = async (
       const novoAgendamento = {
         ...agendamento,
         dataCadastro: new Date().toISOString(),
-        timestamp: Timestamp.now()
+        timestamp: Timestamp.now(),
+        excluido: false // Inicializa como não excluído
       };
       
       // Adiciona o documento de agendamento usando transaction.set()
@@ -99,7 +102,60 @@ export const criarAgendamento = async (
   }
 };
 
+// Lista apenas agendamentos não excluídos
 export const listarAgendamentos = async (): Promise<FirebaseResponse<Agendamento[]>> => {
+  try {
+    const q = query(
+      collection(db, 'agendamentos'),
+      where('excluido', '==', false),
+      orderBy('dataCadastro', 'desc')
+    );
+    const snapshot = await getDocs(q);
+
+    const agendamentos: Agendamento[] = snapshot.docs.map(doc => ({
+      id: doc.id,
+      ...(doc.data() as Omit<Agendamento, 'id'>),
+    }));
+
+    return { success: true, data: agendamentos };
+  } catch (error) {
+    console.error('Erro ao listar agendamentos:', error);
+    return {
+      success: false,
+      data: [],
+      error: error instanceof Error ? error.message : 'Erro desconhecido',
+    };
+  }
+};
+
+// Nova função para listar o histórico (agendamentos excluídos)
+export const listarHistorico = async (): Promise<FirebaseResponse<Agendamento[]>> => {
+  try {
+    const q = query(
+      collection(db, 'agendamentos'),
+      where('excluido', '==', true),
+      orderBy('dataExclusao', 'desc')
+    );
+    const snapshot = await getDocs(q);
+
+    const historico: Agendamento[] = snapshot.docs.map(doc => ({
+      id: doc.id,
+      ...(doc.data() as Omit<Agendamento, 'id'>),
+    }));
+
+    return { success: true, data: historico };
+  } catch (error) {
+    console.error('Erro ao listar histórico:', error);
+    return {
+      success: false,
+      data: [],
+      error: error instanceof Error ? error.message : 'Erro desconhecido',
+    };
+  }
+};
+
+// Nova função para listar todos os agendamentos (ativos e excluídos)
+export const listarTodosAgendamentos = async (): Promise<FirebaseResponse<Agendamento[]>> => {
   try {
     const q = query(collection(db, 'agendamentos'), orderBy('dataCadastro', 'desc'));
     const snapshot = await getDocs(q);
@@ -111,7 +167,7 @@ export const listarAgendamentos = async (): Promise<FirebaseResponse<Agendamento
 
     return { success: true, data: agendamentos };
   } catch (error) {
-    console.error('Erro ao listar agendamentos:', error);
+    console.error('Erro ao listar todos agendamentos:', error);
     return {
       success: false,
       data: [],
@@ -142,7 +198,107 @@ export const atualizarStatus = async (
   }
 };
 
+// Soft delete - marca como excluído ao invés de deletar fisicamente
 export const excluirAgendamento = async (id: string): Promise<FirebaseResponse<null>> => {
+  try {
+    const agendamentoDoc = await getDocs(query(collection(db, 'agendamentos'), where('__name__', '==', id)));
+    
+    if (!agendamentoDoc.empty) {
+      const agendamento = agendamentoDoc.docs[0].data() as Agendamento;
+      const horarioId = `${agendamento.dataRetirada}_${agendamento.horarioRetirada}`;
+      const horarioDocRef = doc(db, 'horarios_ocupados', horarioId);
+      
+      // Marca como excluído e remove o documento de controle de horário
+      await runTransaction(db, async (transaction) => {
+        const agendamentoRef = doc(db, 'agendamentos', id);
+        
+        // Atualiza o agendamento marcando como excluído
+        transaction.update(agendamentoRef, {
+          excluido: true,
+          dataExclusao: new Date().toISOString()
+        });
+        
+        // Remove o documento de controle de horário para liberar o horário
+        transaction.delete(horarioDocRef);
+      });
+    } else {
+      // Caso não encontre com query, tenta atualizar diretamente
+      const agendamentoRef = doc(db, 'agendamentos', id);
+      await updateDoc(agendamentoRef, {
+        excluido: true,
+        dataExclusao: new Date().toISOString()
+      });
+    }
+    
+    return { success: true, data: null };
+  } catch (error) {
+    console.error('Erro ao excluir agendamento:', error);
+    return {
+      success: false,
+      data: null,
+      error: error instanceof Error ? error.message : 'Erro desconhecido',
+    };
+  }
+};
+
+// Nova função para restaurar um agendamento excluído
+export const restaurarAgendamento = async (id: string): Promise<FirebaseResponse<null>> => {
+  try {
+    const agendamentoDoc = await getDocs(query(collection(db, 'agendamentos'), where('__name__', '==', id)));
+    
+    if (!agendamentoDoc.empty) {
+      const agendamento = agendamentoDoc.docs[0].data() as Agendamento;
+      const horarioId = `${agendamento.dataRetirada}_${agendamento.horarioRetirada}`;
+      const horarioDocRef = doc(db, 'horarios_ocupados', horarioId);
+      
+      // Verifica se o horário ainda está disponível antes de restaurar
+      await runTransaction(db, async (transaction) => {
+        const horarioDoc = await transaction.get(horarioDocRef);
+        
+        if (horarioDoc.exists()) {
+          throw new Error('HORARIO_OCUPADO');
+        }
+        
+        const agendamentoRef = doc(db, 'agendamentos', id);
+        
+        // Remove a marcação de excluído
+        transaction.update(agendamentoRef, {
+          excluido: false,
+          dataExclusao: null
+        });
+        
+        // Recria o documento de controle de horário
+        transaction.set(horarioDocRef, {
+          agendamentoId: id,
+          dataRetirada: agendamento.dataRetirada,
+          horarioRetirada: agendamento.horarioRetirada,
+          timestamp: Timestamp.now()
+        });
+      });
+    }
+    
+    return { success: true, data: null };
+  } catch (error) {
+    console.error('Erro ao restaurar agendamento:', error);
+    
+    if (error instanceof Error && error.message === 'HORARIO_OCUPADO') {
+      return {
+        success: false,
+        data: null,
+        error: 'HORARIO_OCUPADO',
+      };
+    }
+    
+    return {
+      success: false,
+      data: null,
+      error: error instanceof Error ? error.message : 'Erro desconhecido',
+    };
+  }
+};
+
+// Função para excluir permanentemente (use com cuidado!)
+export const excluirPermanentemente = async (id: string): Promise<FirebaseResponse<null>> => {
   try {
     const agendamentoDoc = await getDocs(query(collection(db, 'agendamentos'), where('__name__', '==', id)));
     
@@ -162,7 +318,7 @@ export const excluirAgendamento = async (id: string): Promise<FirebaseResponse<n
     
     return { success: true, data: null };
   } catch (error) {
-    console.error('Erro ao excluir agendamento:', error);
+    console.error('Erro ao excluir permanentemente:', error);
     return {
       success: false,
       data: null,
