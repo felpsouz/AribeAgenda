@@ -1,1 +1,0 @@
-export { AgendamentoActions } from './AgendamentoActions';
