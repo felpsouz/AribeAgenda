@@ -507,20 +507,7 @@ const SistemaAribeMotosUsuario: React.FC = () => {
                 <User className="text-red-600" size={20} />
               </div>
               <h2 className="text-2xl font-bold text-gray-800">Agendar Retirada de Moto</h2>
-            </div>
-
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
-              <div className="flex items-center gap-2">
-                <Clock className="text-blue-600" size={20} />
-                <div>
-                  <p className="text-blue-800 font-medium">Atenção: Agendamento com antecedência mínima</p>
-                  <p className="text-blue-700 text-sm">
-                    Os agendamentos devem ser feitos com pelo menos 6 horas de antecedência. 
-                    Próximo horário disponível: após {obterHorarioCorte()}
-                  </p>
-                </div>
-              </div>
-            </div>
+            </div> 
             
             <div>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
