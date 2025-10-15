@@ -987,13 +987,6 @@ const SistemaAribeMotos: React.FC = () => {
               </div>
             </div>
 
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
-              <p className="text-sm text-blue-800">
-                <strong>Importante:</strong> Agendamentos devem ser feitos com pelo menos 6 horas de antecedência. 
-                Horário limite para hoje: {obterHorarioCorte()}
-              </p>
-            </div>
-
             <button
               onClick={cadastrarCliente}
               disabled={loading}
