@@ -257,8 +257,8 @@ CMD ["npm", "start"]
 ## 📞 Suporte
 
 Para dúvidas ou suporte:
-- Email: contato@aribemotos.com.br
-- Telefone: (82) 3333-4444
+- Email: felipesouza@aribemotos.com.br
+- Telefone: (79) 99935-9576
 
 ## 📄 Licença
 
@@ -266,4 +266,4 @@ Este projeto está sob licença ISC - veja o arquivo LICENSE para detalhes.
 
 ---
 
-**Desenvolvido com ❤️ para Aribé Motos**
+**Desenvolvido para Aribé Motos**
