@@ -382,8 +382,8 @@ const SistemaAribeMotos: React.FC = () => {
       return false;
     }
 
-    return true;
     */
+    return true;
   };
 
   const validarFormularioViagem = (): boolean => {
