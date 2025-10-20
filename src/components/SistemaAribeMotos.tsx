@@ -254,6 +254,7 @@ const SistemaAribeMotos: React.FC = () => {
     }
   };
 
+  /*
   const verificarHorarioValido = (data: string, horario: string): boolean => {
     const agora = new Date();
     const [ano, mes, dia] = data.split('-').map(Number);
@@ -262,6 +263,7 @@ const SistemaAribeMotos: React.FC = () => {
     const diferencaHoras = (dataHorarioAgendamento.getTime() - agora.getTime()) / (1000 * 60 * 60);
     return diferencaHoras >= 6;
   };
+  */
 
   const gerarHorariosDisponiveis = useCallback((data: string): string[] => {
   const [ano, mes, dia] = data.split('-').map(Number);
@@ -293,7 +295,7 @@ const SistemaAribeMotos: React.FC = () => {
     horarios.push('11:00');
   }
 
-  return horarios.filter(horario => verificarHorarioValido(data, horario));
+  return horarios /*.filter(horario => verificarHorarioValido(data, horario))*/;
 }, []);
 
   const obterHorariosOcupados = useCallback((data: string): string[] => {
@@ -374,12 +376,14 @@ const SistemaAribeMotos: React.FC = () => {
       return false;
     }
 
+    /*
     if (!verificarHorarioValido(dataRetirada, horarioRetirada)) {
       mostrarMensagem('O agendamento deve ser feito com pelo menos 6 horas de antecedência', 'erro');
       return false;
     }
 
     return true;
+    */
   };
 
   const validarFormularioViagem = (): boolean => {
